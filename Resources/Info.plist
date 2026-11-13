@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BrumlikUpdatePublicKey</key>
+	<string>JVrGxZNzWKlOi5dyckBFM+l9EGaEKjFF8nO6Lu27Jss=</string>
+	<key>BrumlikUpdateRepository</key>
+	<string>Thominho/BrumlikAI</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>BrumlikAI</string>
+	<key>CFBundleExecutable</key>
+	<string>BrumlikAI</string>
+	<key>CFBundleIdentifier</key>
+	<string>cz.brumlik.BrumlikAI</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>BrumlikAI</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.2</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>BrumlikAI records the other party's voice from the call audio, so it can transcribe and summarise the call.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>BrumlikAI saves agreed meetings from your calls to your Apple Calendar.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>BrumlikAI saves agreed meetings from your calls to your Apple Calendar.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>BrumlikAI looks up the caller's name in your Contacts, so it can label each recorded call automatically.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BrumlikAI records your voice during phone calls to create transcripts and summaries.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>BrumlikAI saves to-dos from your calls to Apple Reminders.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>BrumlikAI saves to-dos from your calls to Apple Reminders.</string>
+</dict>
+</plist>
