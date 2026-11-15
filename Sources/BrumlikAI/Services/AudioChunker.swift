@@ -1,40 +1,42 @@
 import Foundation
 import AVFoundation
 
-/// Rozdělí audio soubor na časové úseky pro Whisper API, který má limit okolo 25 MB.
-/// Vrací URLs m4a souborů ve scratch adresáři a je odpovědnost volajícího je smazat.
+/// A piece of a recording and where it lies in the whole, in seconds.
+struct AudioChunk: Equatable {
+    let url: URL
+    let start: Double
+    /// `.greatestFiniteMagnitude` when the file wasn't split.
+    let end: Double
+}
+
+/// Splits an audio file into time slices for the Whisper API, which takes files up to about 25 MB.
+/// The slices are M4A files next to the original; the caller removes them with `cleanup`.
 enum AudioChunker {
-    /// Rozdělí nahrávku na úseky dané maximální délkou (v sekundách).
-    /// Pokud je soubor kratší než threshold, vrátí [original].
+    /// Files up to `maxFileBytes` come back whole; longer ones are cut into equal slices of at most `maxChunkSeconds`.
     static func split(
         url: URL,
         maxChunkSeconds: Double = 15 * 60,
         maxFileBytes: Int = 20 * 1024 * 1024
-    ) async throws -> [URL] {
+    ) async throws -> [AudioChunk] {
+        let whole = [AudioChunk(url: url, start: 0, end: .greatestFiniteMagnitude)]
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
-        if fileSize <= maxFileBytes { return [url] }
+        if fileSize <= maxFileBytes { return whole }
 
         let asset = AVURLAsset(url: url)
         let duration = try await asset.load(.duration).seconds
-        guard duration > 0 else { return [url] }
+        guard duration > 0 else { return whole }
 
         let chunkCount = max(1, Int(ceil(duration / maxChunkSeconds)))
-        let chunkLen = duration / Double(chunkCount)
+        let chunkLength = duration / Double(chunkCount)
 
-        var outputs: [URL] = []
-        for i in 0..<chunkCount {
-            let start = Double(i) * chunkLen
-            let end = min(duration, start + chunkLen)
-            let chunk = try await exportTimeRange(
-                of: asset,
-                from: start,
-                to: end,
-                base: url,
-                index: i
-            )
-            outputs.append(chunk)
+        var chunks: [AudioChunk] = []
+        for index in 0..<chunkCount {
+            let start = Double(index) * chunkLength
+            let end = min(duration, start + chunkLength)
+            let chunk = try await exportTimeRange(of: asset, from: start, to: end, base: url, index: index)
+            chunks.append(AudioChunk(url: chunk, start: start, end: end))
         }
-        return outputs
+        return chunks
     }
 
     private static func exportTimeRange(
@@ -71,9 +73,9 @@ enum AudioChunker {
         return out
     }
 
-    static func cleanup(_ urls: [URL], except keep: URL) {
-        for u in urls where u != keep {
-            try? FileManager.default.removeItem(at: u)
+    static func cleanup(_ chunks: [AudioChunk], except keep: URL) {
+        for chunk in chunks where chunk.url != keep {
+            try? FileManager.default.removeItem(at: chunk.url)
         }
     }
 }

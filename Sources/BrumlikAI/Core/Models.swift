@@ -150,6 +150,10 @@ struct Recording: Identifiable, Codable, Equatable {
     var contactName: String?
     var errorMessage: String?
     var audioWarning: String?
+    /// The transcript with times and, when both sides were recorded, who said what. Older calls have none.
+    var segments: [TranscriptSegment]?
+    /// The follow-up email for the client, once written.
+    var emailDraft: EmailDraft?
 
     init(
         id: UUID = UUID(),
@@ -163,7 +167,9 @@ struct Recording: Identifiable, Codable, Equatable {
         phoneNumber: String? = nil,
         contactName: String? = nil,
         errorMessage: String? = nil,
-        audioWarning: String? = nil
+        audioWarning: String? = nil,
+        segments: [TranscriptSegment]? = nil,
+        emailDraft: EmailDraft? = nil
     ) {
         self.id = id
         self.startedAt = startedAt
@@ -177,6 +183,8 @@ struct Recording: Identifiable, Codable, Equatable {
         self.contactName = contactName
         self.errorMessage = errorMessage
         self.audioWarning = audioWarning
+        self.segments = segments
+        self.emailDraft = emailDraft
     }
 
     var duration: TimeInterval {
@@ -204,6 +212,8 @@ enum ProcessingStatus: String, Codable {
 // MARK: - Summary
 
 struct CallSummary: Codable, Equatable {
+    /// One short sentence: what the call was about. Calls summarised by older versions have none.
+    var headline: String?
     /// What the call contained, for the user.
     var humanSummary: String
     /// A ready-to-paste instruction for another AI tool, enriched with the client's context.
@@ -213,10 +223,18 @@ struct CallSummary: Codable, Equatable {
     var tasks: [TaskProposal]?
 
     enum CodingKeys: String, CodingKey {
-        case humanSummary, aiPrompt, requests, meeting, tasks
+        case headline, humanSummary, aiPrompt, requests, meeting, tasks
     }
 
-    init(humanSummary: String, aiPrompt: String, requests: [String], meeting: MeetingProposal? = nil, tasks: [TaskProposal]? = nil) {
+    init(
+        headline: String? = nil,
+        humanSummary: String,
+        aiPrompt: String,
+        requests: [String],
+        meeting: MeetingProposal? = nil,
+        tasks: [TaskProposal]? = nil
+    ) {
+        self.headline = headline
         self.humanSummary = humanSummary
         self.aiPrompt = aiPrompt
         self.requests = requests
@@ -227,6 +245,9 @@ struct CallSummary: Codable, Equatable {
     /// Lenient on purpose: the LLM sometimes returns nulls or half-filled objects, which shouldn't throw away the whole summary.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let headline = (try? container.decodeIfPresent(String.self, forKey: .headline))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        self.headline = headline?.isEmpty == false ? headline : nil
         humanSummary = (try? container.decodeIfPresent(String.self, forKey: .humanSummary)) ?? ""
         aiPrompt = (try? container.decodeIfPresent(String.self, forKey: .aiPrompt)) ?? ""
         requests = (try? container.decodeIfPresent([String].self, forKey: .requests)) ?? []
@@ -349,21 +370,117 @@ enum CallEvent {
 }
 
 /// An entry of BrumlikAI's own phonebook: the name the user gave a number, optionally linked to a client.
+/// An entry can also mark a caller as private (never recorded); such an entry may have only a name,
+/// because macOS often shows just the contact's name during a call.
 struct PhonebookEntry: Identifiable, Codable, Equatable {
-    var id: String { number }
+    var id: String { number.isEmpty ? "name:" + name.lowercased() : number }
     var number: String
     var name: String
     var clientId: UUID?
+    /// Calls with this caller are never recorded.
+    var doNotRecord: Bool
     var updatedAt: Date
 
-    init(number: String, name: String, clientId: UUID? = nil, updatedAt: Date = Date()) {
+    init(number: String, name: String, clientId: UUID? = nil, doNotRecord: Bool = false, updatedAt: Date = Date()) {
         self.number = PhonebookEntry.normalize(number)
         self.name = name
         self.clientId = clientId
+        self.doNotRecord = doNotRecord
         self.updatedAt = updatedAt
+    }
+
+    enum CodingKeys: String, CodingKey { case number, name, clientId, doNotRecord, updatedAt }
+
+    /// Phonebooks saved by older versions have no `doNotRecord`, so it defaults to false.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        number = PhonebookEntry.normalize((try? container.decodeIfPresent(String.self, forKey: .number)) ?? "")
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        clientId = try? container.decodeIfPresent(UUID.self, forKey: .clientId)
+        doNotRecord = (try? container.decodeIfPresent(Bool.self, forKey: .doNotRecord)) ?? false
+        updatedAt = (try? container.decodeIfPresent(Date.self, forKey: .updatedAt)) ?? Date()
     }
 
     static func normalize(_ raw: String) -> String {
         raw.trimmingCharacters(in: .whitespacesAndNewlines).filter { $0.isNumber || $0 == "+" }
+    }
+
+    /// The same number written differently: "+420 777 123 456" and "777123456" match on the last nine digits.
+    static func sameNumber(_ lhs: String, _ rhs: String) -> Bool {
+        let left = lhs.filter(\.isNumber)
+        let right = rhs.filter(\.isNumber)
+        guard !left.isEmpty, !right.isEmpty else { return false }
+        if left == right { return true }
+        guard left.count >= 9, right.count >= 9 else { return false }
+        return left.suffix(9) == right.suffix(9)
+    }
+
+    /// Names compared the way people read them: "jan novak" matches "Jan Novák".
+    static func sameName(_ lhs: String, _ rhs: String) -> Bool {
+        let left = lhs.trimmingCharacters(in: .whitespacesAndNewlines)
+        let right = rhs.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !left.isEmpty, !right.isEmpty else { return false }
+        return left.compare(right, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+    }
+}
+
+/// Rules for private calls: which caller is never recorded, and how the list changes.
+enum PrivateCalls {
+    /// The never-record entry that covers this caller, matched by number first and then by name.
+    static func rule(in phonebook: [PhonebookEntry], number: String?, name: String?) -> PhonebookEntry? {
+        let rules = phonebook.filter(\.doNotRecord)
+        if let number, let hit = rules.first(where: { PhonebookEntry.sameNumber($0.number, number) }) {
+            return hit
+        }
+        if let name, let hit = rules.first(where: { PhonebookEntry.sameName($0.name, name) }) {
+            return hit
+        }
+        return nil
+    }
+
+    /// Marks a caller private (or not) and returns the updated phonebook.
+    /// Unmarking clears every matching entry and drops entries that existed only to block a caller.
+    static func setting(_ doNotRecord: Bool, number rawNumber: String?, name rawName: String?,
+                        in phonebook: [PhonebookEntry], now: Date = Date()) -> [PhonebookEntry] {
+        let number = PhonebookEntry.normalize(rawNumber ?? "")
+        let name = (rawName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !number.isEmpty || !name.isEmpty else { return phonebook }
+        var entries = phonebook
+
+        if doNotRecord {
+            let byNumber = number.isEmpty ? nil : entries.firstIndex { PhonebookEntry.sameNumber($0.number, number) }
+            // Without a number (or for a name-only rule) the name finds the entry, so the list gets no twins.
+            let byName = name.isEmpty ? nil : entries.firstIndex {
+                PhonebookEntry.sameName($0.name, name) && (number.isEmpty || $0.number.isEmpty)
+            }
+            if let index = byNumber ?? byName {
+                entries[index].doNotRecord = true
+                if entries[index].number.isEmpty { entries[index].number = number }
+                if entries[index].name.isEmpty { entries[index].name = name }
+                entries[index].updatedAt = now
+            } else {
+                entries.append(PhonebookEntry(number: number, name: name, doNotRecord: true, updatedAt: now))
+            }
+            return entries
+        }
+
+        var changed: [Int] = []
+        for index in entries.indices where entries[index].doNotRecord {
+            let numberMatches = !number.isEmpty && PhonebookEntry.sameNumber(entries[index].number, number)
+            let nameMatches = !name.isEmpty && PhonebookEntry.sameName(entries[index].name, name)
+            guard numberMatches || nameMatches else { continue }
+            entries[index].doNotRecord = false
+            entries[index].updatedAt = now
+            changed.append(index)
+        }
+        for index in changed.reversed() where isObsolete(entries[index]) {
+            entries.remove(at: index)
+        }
+        return entries
+    }
+
+    /// An entry that existed only to block a caller has nothing left to remember once it's unblocked.
+    static func isObsolete(_ entry: PhonebookEntry) -> Bool {
+        !entry.doNotRecord && entry.clientId == nil && (entry.name.isEmpty || entry.number.isEmpty)
     }
 }

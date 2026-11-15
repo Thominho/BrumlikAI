@@ -14,6 +14,8 @@ struct ContactEditSheet: View {
     @State private var saving = false
     @State private var saved = false
     @State private var showSaveHint = false
+    @State private var doNotRecord = false
+    @State private var initialDoNotRecord = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -64,6 +66,19 @@ struct ContactEditSheet: View {
                 }
 
                 Section {
+                    Toggle(isOn: $doNotRecord) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label(loc.t(hasPhone ? .contactDoNotRecord : .contactDoNotRecordByName), systemImage: "lock.shield")
+                            Text(loc.t(.contactDoNotRecordHint))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .disabled(!hasPhone && trimmedName.isEmpty)
+                }
+
+                Section {
                     Text(loc.t(.detailContactRememberHint))
                         .font(.footnote).foregroundColor(.secondary)
                     if showSaveHint {
@@ -85,7 +100,8 @@ struct ContactEditSheet: View {
                     .padding(.horizontal, 16).padding(.vertical, 8)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(saving || name.trimmingCharacters(in: .whitespaces).isEmpty)
+                // A name is needed for the phonebook, but flipping "never record" alone can be saved too.
+                .disabled(saving || (trimmedName.isEmpty && doNotRecord == initialDoNotRecord))
             }
         }
         .padding(20)
@@ -94,8 +110,13 @@ struct ContactEditSheet: View {
             name = recording.contactName ?? ""
             phone = recording.phoneNumber ?? ""
             selectedClientId = recording.clientId
+            initialDoNotRecord = appState.privateRule(number: recording.phoneNumber, name: recording.contactName) != nil
+            doNotRecord = initialDoNotRecord
         }
     }
+
+    private var hasPhone: Bool { !PhonebookEntry.normalize(phone).isEmpty }
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private var selectedClient: Client? {
         guard let id = selectedClientId else { return nil }
@@ -111,6 +132,9 @@ struct ContactEditSheet: View {
                 contactName: name,
                 clientId: selectedClientId
             )
+            if doNotRecord != initialDoNotRecord {
+                appState.setDoNotRecord(doNotRecord, number: phone, name: name)
+            }
             await MainActor.run {
                 saving = false
                 saved = true

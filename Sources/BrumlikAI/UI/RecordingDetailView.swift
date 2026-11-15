@@ -6,8 +6,12 @@ struct RecordingDetailView: View {
     @EnvironmentObject var loc: LocalizationManager
 
     let recordingId: UUID
+    var onDeleted: () -> Void = {}
     @State private var regenerating = false
     @State private var editingContact = false
+    @State private var confirmingDelete = false
+    @State private var transcriptExpanded = true
+    @StateObject private var player = AudioPlayback()
 
     private var recording: Recording? {
         appState.recordings.first(where: { $0.id == recordingId })
@@ -52,20 +56,30 @@ struct RecordingDetailView: View {
                                 .environmentObject(coordinator)
                                 .environmentObject(loc)
                         }
+                        FollowUpEmailCard(recording: rec)
                     } else if rec.status == .failed {
                         failedCard(rec)
                     } else {
                         processingCard(rec)
                     }
 
-                    if let transcript = rec.transcript, !transcript.isEmpty {
-                        transcriptCard(transcript)
+                    if rec.transcript?.isEmpty == false || player.isReady {
+                        recordingCard(rec)
                     }
                 }
                 .padding(28)
             }
             .frame(minWidth: 680, minHeight: 620)
             .background(backgroundGradient)
+            .onAppear { loadAudio(rec) }
+            .onChange(of: rec.status) { _, _ in loadAudio(rec) }
+            .onDisappear { player.stop() }
+            .confirmationDialog(loc.t(.detailDeleteConfirmTitle), isPresented: $confirmingDelete) {
+                Button(loc.t(.detailDeleteCall), role: .destructive) { delete(rec) }
+                Button(loc.t(.cancel), role: .cancel) {}
+            } message: {
+                Text(loc.t(.detailDeleteConfirmBody))
+            }
             .sheet(isPresented: $editingContact) {
                 ContactEditSheet(
                     recording: rec,
@@ -146,6 +160,17 @@ struct RecordingDetailView: View {
                 HStack(spacing: 14) {
                     metaBubble(icon: "clock", text: formatDuration(rec.duration))
                     statusBadge(rec.status)
+                    Button { confirmingDelete = true } label: {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .padding(7)
+                            .background(Circle().fill(Color.secondary.opacity(0.1)))
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
+                    .help(loc.t(.detailDeleteCall))
+                    .accessibilityLabel(loc.t(.detailDeleteCall))
                 }
             }
         }
@@ -382,26 +407,108 @@ struct RecordingDetailView: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.08)))
     }
 
-    private func transcriptCard(_ transcript: String) -> some View {
-        DisclosureGroup {
-            Text(transcript)
-                .font(.system(.footnote, design: .monospaced))
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-                .padding(.top, 8)
-        } label: {
+    /// The player and the transcript: who said what, and every sentence plays from where it was said.
+    private func recordingCard(_ rec: Recording) -> some View {
+        let segments = rec.segments ?? []
+        let canPlay = player.isReady
+        return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label(loc.t(.detailTranscript), systemImage: "text.alignleft").font(.headline)
+                Label {
+                    Text(loc.t(.detailRecordingTitle)).font(.headline)
+                } icon: {
+                    Image(systemName: "waveform").foregroundColor(.accentColor)
+                }
                 Spacer()
-                CopyButton(text: transcript, compact: true)
+                if let copy = transcriptCopyText(rec) {
+                    CopyButton(text: copy, compact: true)
+                }
+            }
+
+            if canPlay {
+                AudioPlayerBar(player: player)
+            } else if rec.status == .completed {
+                Text(loc.t(.playerUnavailable)).font(.caption).foregroundColor(.secondary)
+            }
+
+            if !segments.isEmpty {
+                DisclosureGroup(isExpanded: $transcriptExpanded) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if canPlay {
+                            Text(loc.t(.detailTranscriptHint)).font(.caption).foregroundColor(.secondary)
+                        }
+                        TranscriptTurnsView(
+                            segments: segments,
+                            turns: TranscriptBuilder.turns(segments),
+                            otherName: otherName(rec),
+                            activeIndex: player.isPlaying || player.currentTime > 0
+                                ? TranscriptTurnsView.activeIndex(in: segments, at: player.currentTime)
+                                : nil,
+                            canPlay: canPlay
+                        ) { segment in
+                            player.play(from: max(0, segment.start - 0.2))
+                        }
+                    }
+                    .padding(.top, 8)
+                } label: {
+                    Text(loc.t(.detailTranscript)).font(.subheadline.weight(.semibold))
+                }
+            } else if let transcript = rec.transcript, !transcript.isEmpty {
+                DisclosureGroup(isExpanded: $transcriptExpanded) {
+                    Text(transcript)
+                        .font(.system(.callout, design: .rounded))
+                        .foregroundColor(.secondary)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .padding(.top, 8)
+                } label: {
+                    Text(loc.t(.detailTranscript)).font(.subheadline.weight(.semibold))
+                }
             }
         }
         .padding(18)
         .background(RoundedRectangle(cornerRadius: 14).fill(.ultraThinMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.accentColor.opacity(0.14), lineWidth: 1))
+    }
+
+    /// How the other side is called in the transcript: their name when it's known.
+    private func otherName(_ rec: Recording) -> String {
+        rec.contactName.nonEmpty ?? appState.client(for: rec)?.contactPerson.nonEmpty ?? loc.t(.transcriptOther)
+    }
+
+    private func transcriptCopyText(_ rec: Recording) -> String? {
+        if let segments = rec.segments, !segments.isEmpty {
+            let other = otherName(rec)
+            return TranscriptBuilder.labelledText(segments, withTimes: true) { speaker in
+                switch speaker {
+                case .me: return loc.t(.transcriptMe)
+                case .other: return other
+                case .unknown: return nil
+                }
+            }
+        }
+        return rec.transcript.nonEmpty
+    }
+
+    /// The mixed file is complete once transcription starts; before that it may still be written.
+    private func loadAudio(_ rec: Recording) {
+        switch rec.status {
+        case .recording, .pendingTranscription:
+            return
+        case .transcribing, .summarizing, .completed, .failed:
+            player.load(rec.audioURL)
+        }
     }
 
     // MARK: - Actions
+
+    private func delete(_ rec: Recording) {
+        Task {
+            await coordinator.deleteRecording(rec.id)
+            onDeleted()
+        }
+    }
 
     private func changeClient(to clientId: UUID?, for recordingId: UUID) async {
         regenerating = true

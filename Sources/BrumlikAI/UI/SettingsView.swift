@@ -152,6 +152,12 @@ struct SettingsView: View {
 
             Section {
                 Toggle(loc.t(.settingsAutoDetect), isOn: $appState.autoDetectEnabled)
+                Toggle(isOn: $appState.showCallBriefing) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(loc.t(.settingsBriefing))
+                        Text(loc.t(.settingsBriefingHint)).font(.caption).foregroundColor(.secondary)
+                    }
+                }
                 Toggle(loc.t(.settingsConsent), isOn: $appState.consentAcknowledged)
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle(loc.t(.settingsLaunchAtLogin), isOn: $launchAtLogin)
@@ -159,6 +165,10 @@ struct SettingsView: View {
                     Text(loc.t(.settingsLaunchAtLoginHint)).font(.caption).foregroundColor(.secondary)
                 }
             }
+
+            PrivateCallsSection()
+
+            EmailSettingsSection()
 
             UpdatesSection()
 
@@ -223,6 +233,115 @@ struct SettingsView: View {
             appState.lastError = error.localizedDescription
             launchAtLogin = LaunchAgent.isEnabled
         }
+    }
+}
+
+/// Numbers (or contact names) that are never recorded.
+private struct PrivateCallsSection: View {
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var loc: LocalizationManager
+
+    @State private var number = ""
+    @State private var name = ""
+
+    var body: some View {
+        Section {
+            Text(loc.t(.settingsPrivateBody))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                TextField(loc.t(.settingsPrivateNumber), text: $number)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 180)
+                    .onSubmit(add)
+                TextField(loc.t(.settingsPrivateName), text: $name)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(add)
+                Button(action: add) {
+                    Label(loc.t(.settingsPrivateAdd), systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canAdd)
+            }
+            Text(loc.t(.settingsPrivateNameHint))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if appState.privateCallers.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "lock.open")
+                        .foregroundColor(.secondary.opacity(0.6))
+                    Text(loc.t(.settingsPrivateEmpty))
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+            } else {
+                ForEach(appState.privateCallers) { entry in
+                    row(entry)
+                }
+            }
+        } header: {
+            Label(loc.t(.settingsPrivateTitle), systemImage: "lock.shield")
+        }
+    }
+
+    private var canAdd: Bool {
+        !PhonebookEntry.normalize(number).isEmpty || !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func add() {
+        guard canAdd else { return }
+        withAnimation { appState.setDoNotRecord(true, number: number, name: name) }
+        number = ""
+        name = ""
+    }
+
+    private func row(_ entry: PhonebookEntry) -> some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(Color.accentColor.opacity(0.12)).frame(width: 30, height: 30)
+                Image(systemName: entry.number.isEmpty ? "person.fill" : "phone.fill")
+                    .font(.caption)
+                    .foregroundColor(.accentColor)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.name.isEmpty ? entry.number : entry.name)
+                    .font(entry.name.isEmpty ? .system(.body, design: .monospaced) : .body)
+                if let detail = detail(for: entry) {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            Spacer()
+            Button {
+                withAnimation { appState.removePrivate(entry) }
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help(loc.t(.settingsPrivateRemove))
+            .accessibilityLabel(loc.t(.settingsPrivateRemove))
+        }
+    }
+
+    private func detail(for entry: PhonebookEntry) -> String? {
+        var parts: [String] = []
+        if entry.number.isEmpty {
+            parts.append(loc.t(.settingsPrivateByName))
+        } else if !entry.name.isEmpty {
+            parts.append(entry.number)
+        }
+        if let clientId = entry.clientId, let client = appState.clients.first(where: { $0.id == clientId }) {
+            parts.append(client.name)
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 

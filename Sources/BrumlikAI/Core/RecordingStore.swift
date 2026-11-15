@@ -1,9 +1,12 @@
 import Foundation
 
 enum RecordingStore {
+    /// Tests keep their data in a temporary folder instead of the user's.
+    nonisolated(unsafe) static var directoryOverride: URL?
+
     static var storageDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("BrumlikAI", isDirectory: true)
+        let dir = directoryOverride ?? base.appendingPathComponent("BrumlikAI", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
@@ -43,9 +46,24 @@ enum RecordingStore {
         recordingsDirectory.appendingPathComponent("\(id.uuidString).m4a")
     }
 
+    /// Your side alone, small, for telling the speakers apart. Kept only until the call is transcribed.
+    static func myTrackURL(for id: UUID) -> URL {
+        recordingsDirectory.appendingPathComponent("\(id.uuidString).me.m4a")
+    }
+
+    /// The other side alone, small, for telling the speakers apart. Kept only until the call is transcribed.
+    static func otherTrackURL(for id: UUID) -> URL {
+        recordingsDirectory.appendingPathComponent("\(id.uuidString).other.m4a")
+    }
+
     static func removeParts(for id: UUID) {
         try? FileManager.default.removeItem(at: systemPartURL(for: id))
         try? FileManager.default.removeItem(at: micPartURL(for: id))
+    }
+
+    static func removeTracks(for id: UUID) {
+        try? FileManager.default.removeItem(at: myTrackURL(for: id))
+        try? FileManager.default.removeItem(at: otherTrackURL(for: id))
     }
 
     /// Removes every file of a recording: parts, the mixed file and leftover upload chunks.

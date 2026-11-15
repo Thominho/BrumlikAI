@@ -57,8 +57,11 @@ BrumlikAI bydlí v menu baru. Když přijmeš hovor na Macu, nahraje obě strany
 - **požadavky** klienta jako seznam,
 - **úkoly** s termíny, jedním klikem v Připomínkách,
 - domluvenou **schůzku**, jedním klikem v Kalendáři,
-- celý **přepis**, ve kterém jde později hledat,
+- celý **přepis s tím, kdo co řekl** — klikneš na větu a uslyšíš to místo hovoru,
+- krátký **e‑mail pro klienta** s tím, na čem jste se domluvili, připravený k otevření v Mailu nebo rovnou k odeslání,
 - volitelně připravený **pokyn pro tvůj AI nástroj** (Claude, Cursor, …), ve kterém už jsou weby, servery a stack klienta.
+
+A když stejný klient zavolá znovu, panel hovoru ti připomene, o čem byl minulý hovor a co jsi měl udělat.
 
 Celá aplikace je **česky i anglicky**.
 
@@ -67,7 +70,12 @@ Celá aplikace je **česky i anglicky**.
 | | |
 |---|---|
 | **Automatické nahrávání hovorů** | Pozná hovory, které přijmeš na Macu — hovory z iPhonu přes Continuity i FaceTime — a sama začne nahrávat. Ruční nahrávání je na jedno kliknutí. |
+| **Soukromé hovory zůstanou soukromé** | Během každého nahrávaného hovoru se ukáže malý panel. Klikneš na **Soukromý – nenahrávat** a nahrávání se zastaví a na místě smaže — nic se neuloží ani neodešle. Rodinu a přátele přidáš do seznamu, který BrumlikAI nenahraje vůbec. |
 | **Obě strany hovoru** | Tvůj hlas z mikrofonu, druhou stranu ze zvuku Macu přes Core Audio process tap. Aplikace, které na začátku hovoru jen přehrávaly hudbu nebo video, se nenahrávají. |
+| **Kdo co řekl** | Obě strany se přepisují zvlášť, takže přepis ví, kdo co řekl — a v úkolech je to, co jsi slíbil *ty*, ne klient. Hlas druhé strany, který se z reproduktorů vrací do mikrofonu, se odfiltruje. |
+| **Připomenutí minulého hovoru** | Když znovu volá někdo, s kým už jsi mluvil, panel hovoru ukáže, o čem byl minulý hovor, tvoje úkoly z něj a nadcházející schůzku. |
+| **Přehrávání** | Nahrávku pustíš přímo v detailu hovoru, s posunem o ±15 s a rychlostí až 2×. Klikneš na větu v přepisu a hovor se přehraje od ní. |
+| **E‑mail klientovi** | Jedním klikem vznikne krátký e‑mail s tím, na čem jste se domluvili, a dalšími kroky. Upravíš ho a otevřeš v Mailu — nebo ho rovnou odešleš přes vlastní SMTP server. |
 | **Přepis a shrnutí** | Whisper large‑v3 a Llama 3.3 70B na DeepInfra. Ve shrnutí je jen to, co v hovoru zaznělo. |
 | **Shrnutí pro tvůj obor** | Řekni BrumlikAI, co děláš — vývojář webů, grafik, účetní — a shrnutí se zaměří na detaily, které jsou pro tebe důležité. |
 | **Úkoly → Připomínky** | Úkoly s termíny jedním klikem do Připomínek (se jménem klienta na začátku). |
@@ -87,17 +95,18 @@ Celá aplikace je **česky i anglicky**.
 flowchart LR
     A["Hovor přijatý<br/>na Macu"] --> B["Rozpoznání hovoru<br/>Core Audio: která aplikace<br/>používá mikrofon"]
     B --> C["Nahrávání<br/>mikrofon +<br/>tap systémového zvuku"]
-    C --> D["Smíchání do M4A<br/>zůstává na Macu"]
-    D --> E["Whisper<br/>přepis"]
+    C --> D["Každá strana zvlášť<br/>+ smíchané M4A<br/>zůstává na Macu"]
+    D --> E["Whisper<br/>přepis s tím,<br/>kdo co řekl"]
     E --> F["Llama 3.3<br/>shrnutí · požadavky<br/>úkoly · schůzka"]
-    F --> G["Detail hovoru<br/>kopírování · Kalendář<br/>Připomínky"]
+    F --> G["Detail hovoru<br/>přehrávání · e-mail<br/>Kalendář · Připomínky"]
 ```
 
 1. **Rozpoznání.** Každé dvě sekundy se BrumlikAI zeptá Core Audio, které procesy používají mikrofon. Když ho FaceTime nebo systémové služby pro hovory (`avconferenced`, `callservicesd`) drží pár sekund, probíhá hovor. Když ho asi šest sekund nepoužívají, hovor skončil — krátké ztlumení nahrávku nerozdělí.
 2. **Nahrávání.** Nahrávají se dvě stopy zároveň: mikrofon (ty) a Core Audio process tap zvukového výstupu Macu (druhá strana). Samotná BrumlikAI a aplikace, které na začátku hovoru jen přehrávaly zvuk, jsou z tapu vyřazené.
 3. **Volající.** Číslo nebo jméno se přečte z okna hovoru a dohledá nejdřív v telefonním seznamu BrumlikAI, potom v Kontaktech.
-4. **Zpracování.** Stopy se smíchají do jednoho souboru M4A. Whisper z něj udělá přepis (dlouhé hovory se dělí na části) a Llama 3.3 70B vrátí strukturované shrnutí: shrnutí, požadavky, úkoly, domluvenou schůzku a — pokud je zapneš — pokyn pro AI.
+4. **Zpracování.** Stopy se smíchají do jednoho souboru M4A pro přehrávání a každá strana se navíc uloží zvlášť jako malý soubor s řečí. Whisper přepíše obě strany odděleně (dlouhé hovory po částech). BrumlikAI si nechá jen to, co na dané straně opravdu zaznělo — do ticha si Whisper rád něco vymyslí —, vyřadí hlas druhé strany, který mikrofon zachytil z reproduktorů, a obě strany spojí podle času do přepisu, který ví, kdo co řekl. Llama 3.3 70B pak vrátí strukturované shrnutí: jednovětý titulek, shrnutí, požadavky, tvoje úkoly, domluvenou schůzku a — pokud je zapneš — pokyn pro AI. Samostatné soubory stran se po dokončení přepisu smažou.
 5. **Výsledek.** Přijde oznámení a hovor se objeví v historii v menu baru.
+6. **Další hovor.** Když volá stejné číslo, klient nebo kontakt znovu, panel hovoru připomene titulek, úkoly a nadcházející schůzku z vašeho minulého hovoru.
 
 ## Požadavky
 
@@ -157,8 +166,8 @@ Průvodce nastavením (v úvodním průvodci, v *Nastavení → Průvodce opráv
 | **Kalendáře** | Doporučené | Ukládání schůzek | Nastavení systému → Soukromí a zabezpečení → Kalendáře |
 | **Připomínky** | Doporučené | Ukládání úkolů | Nastavení systému → Soukromí a zabezpečení → Připomínky |
 | **Oznámení** | Doporučené | „Nahrávání spuštěno“, „Hovor je shrnutý“ | Nastavení systému → Oznámení |
-| **Kontakty** | Nepovinné | Jména volajících | Nastavení systému → Soukromí a zabezpečení → Kontakty |
-| **Nahrávání obrazovky** | Nepovinné | Jméno volajícího z okna hovoru | Nastavení systému → Soukromí a zabezpečení → nahrávání obrazovky a systémového zvuku |
+| **Kontakty** | Nepovinné | Jména volajících; poznání soukromých hovorů | Nastavení systému → Soukromí a zabezpečení → Kontakty |
+| **Nahrávání obrazovky** | Nepovinné | Jméno volajícího z okna hovoru — díky němu BrumlikAI pozná soukromý hovor ještě před nahráváním | Nastavení systému → Soukromí a zabezpečení → nahrávání obrazovky a systémového zvuku |
 
 > [!NOTE]
 > macOS aplikacím neprozradí, jestli smějí nahrávat systémový zvuk. Tlačítko **Otestovat** v průvodci proto přehraje krátký zvuk a ověří, že ho BrumlikAI slyší.
@@ -173,6 +182,35 @@ Průvodce nastavením (v úvodním průvodci, v *Nastavení → Průvodce opráv
 > [!IMPORTANT]
 > Nahrávání hovorů podléhá ochraně osobních údajů (GDPR) a často vyžaduje souhlas druhé strany. Na začátku každého hovoru jí řekni, že ho nahráváš, a ověř si pravidla, která se na tebe vztahují.
 
+### Soukromé hovory
+
+Jakmile se hovor začne nahrávat, objeví se nahoře na obrazovce malý panel a řekne ti, co se bude dít:
+
+- **Nic neuděláš** — hovor se nahraje a po zavěšení shrne jako obvykle.
+- **Soukromý – nenahrávat** — nahrávání se hned zastaví a smaže. Nic se neuloží, nic se neodešle ke zpracování a hovor se neobjeví ani v historii.
+
+Po pár vteřinách se panel zmenší na malou pilulku, aby nepřekážel; **Soukromý…** ho znovu otevře i s vysvětlením. Stejné tlačítko najdeš během nahrávání i v okně v menu baru.
+
+**Číslo, které se nikdy nenahraje.** Hned po označení hovoru jako soukromého se panel zeptá **Nenahrávat toto číslo už nikdy?** — klikneš na **Nikdy nenahrávat** a hovory s tímto číslem se už nenahrají (nebo **Jen tentokrát**). Seznam můžeš spravovat i:
+
+- v **Nastavení → Soukromé hovory** — přidat číslo, případně i se jménem, nebo ho odebrat,
+- v *Upravit kontakt* zapnutím **Hovory s tímto číslem nikdy nenahrávat**.
+
+Když volá někdo ze seznamu, BrumlikAI vůbec nenahrává. Jen na chvíli ukáže **Soukromý hovor – nenahrává se** s tlačítkem **Přesto nahrávat** pro případ, že tenhle hovor přece jen potřebuješ.
+
+> [!NOTE]
+> Aby BrumlikAI poznal soukromého volajícího ještě před nahráváním, přečte číslo nebo jméno z okna hovoru (oprávnění *Nahrávání obrazovky*) a podívá se do tvých Kontaktů. macOS často ukazuje jen jméno kontaktu, proto přidej i jméno — tak, jak ho máš uložené v kontaktech. I bez těchto oprávnění můžeš kterýkoli hovor jedním kliknutím označit jako soukromý.
+
+### Připomenutí minulého hovoru
+
+Když volá někdo, s kým už jsi mluvil — stejné číslo, kontakt se stejným jménem nebo někdo ze stejné klientské firmy —, panel hovoru ukáže **Minulý hovor**:
+
+- o čem hovor byl, jednou větou,
+- **Tvoje úkoly** z něj (nejvýš tři),
+- domluvenou **schůzku**, pokud je ještě před vámi.
+
+**Otevřít** ukáže celý detail toho hovoru. S připomenutím zůstane panel otevřený o něco déle; když se zmenší na pilulku, **Minule** ho otevře znovu. Vypneš to v **Nastavení → Při hovoru připomenout minulý hovor**.
+
 ### Historie hovorů
 
 Okno v menu baru ukazuje hovory s volajícím, firmou, časem a délkou. Červená ikona znamená nahrávání, kolečko zpracování a oranžový trojúhelník chybu. Klikem otevřeš detail.
@@ -186,9 +224,11 @@ Okno v menu baru ukazuje hovory s volajícím, firmou, časem a délkou. Červen
 | **Pokyn pro moji AI** | Jen když ho zapneš v Nastavení. Zkopíruj ho do Claude, Cursoru nebo jiného AI nástroje. |
 | **Úkoly z hovoru** | U každého *Přidat do Připomínek*; na začátek se přidá jméno klienta. |
 | **Navržená schůzka** | Zkontroluj ji, *Upravit* čas, délku, místo nebo poznámky, a pak *Přidat do Kalendáře*. |
-| **Celý přepis** | Rozbal a zkopíruj. |
+| **E‑mail klientovi** | *Napsat e‑mail* připraví krátký e‑mail — na čem jste se domluvili a další kroky — v jazyce hovoru a s adresou z karty klienta. Upravíš ho a pak *Otevřít v Mailu*, nebo *Odeslat* přes vlastní SMTP server (nejdřív to potvrdíš). *Napsat znovu* vytvoří novou verzi. |
+| **Nahrávka a přepis** | Přehraješ hovor s posunem o ±15 s a rychlostí 1×–2×. Přepis ukazuje, kdo co řekl — *Vy* a jméno volajícího — i s časy; klikneš na větu a hovor se přehraje od ní. *Kopírovat* vezme i jména a časy. |
 | **Kontrola zvuku** | Upozorní, když byla tvoje strana nebo druhá strana úplně potichu. |
 | **Zpracování selhalo** | Ukáže důvod; *Zkusit znovu* pokračuje tam, kde se zastavilo (třeba po opravě tokenu). |
+| **Smazat hovor** | Ikona koše nahoře nevratně smaže nahrávku, přepis i shrnutí. Hovor, který se ještě zpracovává, přestane odesílat. |
 
 ### Klienti
 
@@ -210,6 +250,16 @@ Zapni **Nastavení → Zobrazovat pokyny pro AI pod shrnutím** a u každého ho
 
 Pole nad historií hledá ve volajících, číslech, firmách, přepisech, shrnutích, požadavcích i úkolech.
 
+### E‑maily klientům
+
+V detailu hovoru **Napsat e‑mail** udělá z hovoru krátký e‑mail pro klienta: poděkování za hovor, na čem jste se domluvili, kdo co udělá a do kdy, a schůzku, pokud jste ji domluvili. Použije jen to, co zaznělo, vynechá interní detaily a končí pozdravem, aby po něm následoval tvůj podpis. Jak e‑mail odejde, nastavíš v **Nastavení → E‑maily klientům**:
+
+- **Aplikaci Mail** (výchozí) — e‑mail se otevře v Mailu s vyplněnou adresou, předmětem i textem; zkontroluješ ho a odešleš tam.
+- **Vlastní SMTP server** — BrumlikAI ho odešle sám, když klikneš na **Odeslat** a potvrdíš to. Vyplň server, zabezpečení, port, uživatele, heslo, jméno a adresu odesílatele a klikni na **Vyzkoušet připojení** (přihlásí se a odhlásí, nic se neodešle).
+
+> [!NOTE]
+> Spojení s tvým SMTP serverem je vždy šifrované — **SSL/TLS** (obvykle port 465) nebo **STARTTLS** (obvykle 587). Když server STARTTLS nenabízí, BrumlikAI raději skončí, než aby poslal heslo nešifrovaně. Heslo je uložené v Klíčence macOS. E‑maily odeslané přes SMTP se neukážou ve složce *Odeslané*, proto je ve výchozím stavu zapnuté **Posílat skrytou kopii i mně**.
+
 ## Nastavení
 
 | Nastavení | Co dělá |
@@ -222,8 +272,11 @@ Pole nad historií hledá ve volajících, číslech, firmách, přepisech, shrn
 | **Co pro klienty děláš** | Zaměří shrnutí (a pokyny pro AI) na tvůj obor. |
 | **Výchozí kalendář / seznam Připomínek** | Kam se ukládají schůzky a úkoly. |
 | **Rozpoznávat hovory automaticky** | Ve výchozím stavu zapnuté. |
+| **Při hovoru připomenout minulý hovor** | Ve výchozím stavu zapnuté. Panel hovoru ukáže, o čem byl tvůj minulý hovor s tímto člověkem. |
 | **Druhou stranu informuji o nahrávání** | Nutné pro automatické nahrávání. |
 | **Spouštět BrumlikAI po přihlášení** | Přidá BrumlikAI mezi položky po přihlášení. |
+| **Soukromé hovory** | Čísla (nebo jména kontaktů), jejichž hovory se nikdy nenahrají. |
+| **E‑maily klientům** | Odesílání přes aplikaci Mail (výchozí) nebo vlastní SMTP server: server, SSL/TLS nebo STARTTLS, port, uživatel, heslo (v Klíčence), jméno a adresa odesílatele, skrytá kopie tobě, *Vyzkoušet připojení*. |
 | **Aktualizace** | Tvoje verze, *Zkontrolovat*, automatická kontrola (zapnutá) a automatická instalace (vypnutá). |
 | **Diagnostika** | Pětisekundová zkušební nahrávka, vstup mikrofonu a aplikace, které právě používají zvuk. |
 | **Spustit průvodce znovu** | Spustí znovu úvodního průvodce. |
@@ -244,20 +297,22 @@ Pole nad historií hledá ve volajících, číslech, firmách, přepisech, shrn
 | Co | Kde |
 |---|---|
 | Nahrávky (M4A) | `~/Library/Application Support/BrumlikAI/recordings/` |
-| Přepisy, shrnutí, historie hovorů | `~/Library/Application Support/BrumlikAI/recordings.json` |
+| Přepisy, shrnutí, koncepty e‑mailů, historie hovorů | `~/Library/Application Support/BrumlikAI/recordings.json` |
 | Klienti | `~/Library/Application Support/BrumlikAI/clients.json` |
-| Telefonní seznam | `~/Library/Application Support/BrumlikAI/phonebook.json` |
-| DeepInfra token | Klíčenka macOS |
+| Telefonní seznam a soukromé hovory | `~/Library/Application Support/BrumlikAI/phonebook.json` |
+| DeepInfra token, heslo k SMTP | Klíčenka macOS |
 | Nastavení | uživatelské předvolby macOS (`cz.brumlik.BrumlikAI`) |
 
-Smazáním hovoru v aplikaci se smaže i jeho zvuk.
+Během přepisu je vedle nahrávky ještě každá strana uložená zvlášť jako malý soubor; jakmile je přepis hotový, smaže se. Smazáním hovoru v aplikaci se smaže i jeho zvuk. Hovor označený jako **Soukromý – nenahrávat** se smaže už během nahrávání a nikdy neopustí tvůj Mac; hovory s čísly ze soukromého seznamu se nenahrávají vůbec.
 
 **Co se posílá přes internet**
 
 | Komu | Co | Kdy |
 |---|---|---|
-| DeepInfra | Zvuk hovoru | Přepis |
+| DeepInfra | Zvuk hovoru — každá strana zvlášť | Přepis |
 | DeepInfra | Přepis; popis tvé práce; u přiřazeného klienta jméno, IČO, kontakty a spravované systémy (nikdy nápověda k přihlášení) | Shrnutí a pokyn pro AI |
+| DeepInfra | Přepis a shrnutí hovoru, jméno klienta a kontaktní osoby | Když klikneš na *Napsat e‑mail* |
+| Tvůj SMTP server | E‑mail klientovi (a skrytá kopie tobě, pokud je zapnutá) | Když klikneš na *Odeslat* |
 | GitHub | Dotaz na poslední verzi | Kontrola aktualizací |
 | ARES (ares.gov.cz) | IČO, které zadáš | Vyhledání v ARES |
 
@@ -299,6 +354,24 @@ Token je špatně, vypršel nebo byl smazán. V dashboardu DeepInfra (API Keys) 
 <summary><b>„Zpracování selhalo“</b></summary>
 
 V detailu je důvod (chybí internet, token, prázdná nahrávka, …). Oprav ho a klikni na **Zkusit znovu** — hotové kroky se neopakují.
+</details>
+
+<details>
+<summary><b>V přepisu nejsou jména, nebo jsou klientova slova připsaná mně</b></summary>
+
+Kdo co řekl, pozná BrumlikAI jen z obou stran hovoru: když byla jedna z nich potichu (viz upozornění na zvuk v detailu hovoru), přepis se ukáže bez jmen. Přes reproduktory Macu slyší mikrofon i druhou stranu; BrumlikAI vyřadí to, co zaznělo ve stejnou chvíli na obou stranách, ale nejčistší výsledek dají sluchátka. Hovory nahrané staršími verzemi jména nemají.
+</details>
+
+<details>
+<summary><b>Jaké nastavení SMTP použít?</b></summary>
+
+To, které tvůj poskytovatel e‑mailu uvádí pro odesílání pošty: název serveru, port a *SSL/TLS* (obvykle 465) nebo *STARTTLS* (obvykle 587). Uživatel bývá celá e‑mailová adresa. Někteří poskytovatelé, třeba Gmail, chtějí místo běžného hesla heslo pro aplikace. Před prvním e‑mailem vše ověříš tlačítkem **Vyzkoušet připojení**.
+</details>
+
+<details>
+<summary><b>E‑maily odeslané z BrumlikAI nejsou ve složce Odeslané</b></summary>
+
+Poštu odeslanou přes SMTP server do *Odeslaných* neukládá. Nech zapnuté **Posílat skrytou kopii i mně** (ve výchozím stavu je) a každý e‑mail ti přijde i do schránky. Jestli ho chceš mít v *Odeslaných*, vyber v *Nastavení → E‑maily klientům* **Aplikaci Mail**.
 </details>
 
 <details>
@@ -358,6 +431,18 @@ open -W -n /Applications/BrumlikAI.app --args --self-test 20 --report ~/Desktop/
 ```
 
 S `--process` nahrávku i přepíše a shrne (použije tvůj DeepInfra token). Ve výsledku je hlasitost obou stran, vstup mikrofonu a přístup k němu, aplikace používající zvuk, jestli byl rozpoznán hovor, stav nebo chyba zpracování, přepis a shrnutí. Zkušební nahrávka se potom smaže.
+
+Panel hovoru zkontroluješ i bez hovoru: `--preview-call-panel <složka>` na chvíli ukáže každý jeho stav (nic se nenahrává), uloží PNG každého z nich a `frames.json` s polohou panelu a aplikaci ukončí:
+
+```bash
+open -W -n /Applications/BrumlikAI.app --args --preview-call-panel ~/Desktop/brumlik-panel
+```
+
+`--preview-call-detail <složka>` otevře smyšlený hovor v okně detailu — s přehrávačem, přepisem s tím, kdo co řekl, a e‑mailem —, uloží snímky jeho horní a spodní části a skončí. Pracuje v dočasné složce, takže na tvoje hovory nesáhne:
+
+```bash
+open -W -n /Applications/BrumlikAI.app --args --preview-call-detail ~/Desktop/brumlik-detail
+```
 
 ## Sestavení ze zdrojového kódu
 
@@ -422,6 +507,9 @@ BrumlikAI/
 │   ├── Core/
 │   │   ├── AppState.swift          Nahrávky, klienti, telefonní seznam, nastavení
 │   │   ├── Models.swift            Recording, Client, CallSummary, MeetingProposal, TaskProposal…
+│   │   ├── Transcript.swift        Kdo co řekl: hlasitost, ozvěna, spojení obou stran
+│   │   ├── CallBriefing.swift      Připomenutí minulého hovoru se stejným volajícím
+│   │   ├── Email.swift             Koncepty e-mailů, nastavení SMTP, adresy
 │   │   ├── Localization.swift      Anglické a české texty
 │   │   ├── SetupChecklist.swift    Živý stav oprávnění pro průvodce nastavením
 │   │   ├── RecordingStore.swift    Soubory na disku
@@ -434,19 +522,25 @@ BrumlikAI/
 │   │   ├── SystemAudioTap.swift    Core Audio process tap (druhá strana)
 │   │   ├── MicRecorder.swift       Mikrofon (ty)
 │   │   ├── AudioMixer.swift, AudioChunker.swift
-│   │   ├── DeepInfraClient.swift   Přepis přes Whisper, shrnutí přes Llamu
+│   │   ├── AudioLevels.swift       Malá kopie řeči každé strany, hlasitost v čase
+│   │   ├── CallTranscriber.swift   Přepíše obě strany zvlášť a spojí je
+│   │   ├── DeepInfraClient.swift   Přepis přes Whisper, shrnutí a e-maily přes Llamu
 │   │   ├── RecordingCoordinator.swift Celý proces: nahrát → smíchat → přepsat → shrnout
+│   │   ├── SMTPClient.swift        Odesílání e-mailů přes SMTP (SSL/TLS nebo STARTTLS)
+│   │   ├── MailComposer.swift      Otevření e-mailu v Mailu
 │   │   ├── CalendarService.swift, RemindersService.swift, ContactsService.swift, AresClient.swift
 │   │   ├── UpdateChecker.swift     Podepsané aktualizace z GitHub Releases
 │   │   ├── LaunchAgent.swift       Spuštění po přihlášení
-│   │   └── SelfTest.swift          Diagnostika a --self-test
-│   └── UI/                         SwiftUI obrazovky: menu, detail hovoru, klienti, nastavení, průvodci
-└── Tests/BrumlikAITests/           Unit testy
+│   │   ├── SelfTest.swift          Diagnostika, --self-test a --preview-call-panel
+│   │   └── CallDetailPreview.swift --preview-call-detail
+│   └── UI/                         SwiftUI obrazovky: menu, panel hovoru (CallOverlay), detail hovoru s přehrávačem
+│                                   (CallPlayback) a e-mailem (FollowUpEmailCard), klienti, nastavení, průvodci
+└── Tests/BrumlikAITests/           Unit testy: soukromé hovory s falešným nahrávačem, kdo co řekl na generovaném
+                                    zvuku, připomenutí minulého hovoru, SMTP proti naskriptovanému serveru
 ```
 
 ## Nápady do budoucna
 
-- Rozlišení mluvčích — tvůj hlas a druhá strana přepsané zvlášť.
 - Výběr AI modelů v Nastavení.
 - Šifrování nahrávek na disku.
 - Podpis vývojářským účtem Apple a notarizace.

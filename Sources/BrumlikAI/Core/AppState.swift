@@ -28,7 +28,42 @@ final class AppState: ObservableObject {
     @Published var callLanguage: String = UserDefaults.standard.string(forKey: "callLanguage") ?? "auto" {
         didSet { UserDefaults.standard.set(callLanguage, forKey: "callLanguage") }
     }
+    /// The call panel recalls the last call with the same caller.
+    @Published var showCallBriefing: Bool = AppState.storedBool("showCallBriefing", default: true) {
+        didSet { UserDefaults.standard.set(showCallBriefing, forKey: "showCallBriefing") }
+    }
+    @Published var emailTransport: EmailTransport = EmailTransport(rawValue: UserDefaults.standard.string(forKey: "emailTransport") ?? "") ?? .mail {
+        didSet { UserDefaults.standard.set(emailTransport.rawValue, forKey: "emailTransport") }
+    }
+    @Published var smtpSettings: SMTPSettings = AppState.storedSMTPSettings() {
+        didSet {
+            if let data = try? JSONEncoder().encode(smtpSettings) {
+                UserDefaults.standard.set(data, forKey: "smtpSettings")
+            }
+        }
+    }
     @Published var lastError: String?
+
+    /// Read only when sending or testing, so opening Settings never asks for Keychain access.
+    var smtpPassword: String? {
+        get { Keychain.read(key: "smtp_password") }
+        set {
+            if let value = newValue, !value.isEmpty {
+                Keychain.write(key: "smtp_password", value: value)
+            } else {
+                Keychain.delete(key: "smtp_password")
+            }
+            objectWillChange.send()
+        }
+    }
+
+    var hasSMTPPassword: Bool { Keychain.exists(key: "smtp_password") }
+
+    nonisolated static func storedSMTPSettings() -> SMTPSettings {
+        guard let data = UserDefaults.standard.data(forKey: "smtpSettings"),
+              let settings = try? JSONDecoder().decode(SMTPSettings.self, from: data) else { return SMTPSettings() }
+        return settings
+    }
 
     var deepInfraToken: String? {
         get { Keychain.read(key: "deepinfra_token") }
@@ -134,25 +169,54 @@ final class AppState: ObservableObject {
         let needle = PhonebookEntry.normalize(number)
         guard !needle.isEmpty else { return nil }
         if let exact = phonebook.first(where: { $0.number == needle }) { return exact }
-        let suffix = needle.suffix(9)
-        return phonebook.first { $0.number.hasSuffix(suffix) }
+        return phonebook.first { PhonebookEntry.sameNumber($0.number, needle) }
     }
 
     func upsertPhonebook(number: String, name: String, clientId: UUID?) {
         let normalized = PhonebookEntry.normalize(number)
         guard !normalized.isEmpty else { return }
-        let entry = PhonebookEntry(number: normalized, name: name, clientId: clientId, updatedAt: Date())
-        if let index = phonebook.firstIndex(where: { $0.number == normalized }) {
-            phonebook[index] = entry
+        // Updated in place, so a number marked private stays private.
+        if let index = phonebook.firstIndex(where: { $0.number == normalized })
+            ?? phonebook.firstIndex(where: { PhonebookEntry.sameNumber($0.number, normalized) }) {
+            phonebook[index].name = name
+            phonebook[index].clientId = clientId
+            phonebook[index].updatedAt = Date()
         } else {
-            phonebook.append(entry)
+            phonebook.append(PhonebookEntry(number: normalized, name: name, clientId: clientId))
         }
         PhonebookStore.save(phonebook)
 
-        for index in recordings.indices where PhonebookEntry.normalize(recordings[index].phoneNumber ?? "") == normalized {
+        for index in recordings.indices where PhonebookEntry.sameNumber(recordings[index].phoneNumber ?? "", normalized) {
             recordings[index].contactName = name
             if let clientId { recordings[index].clientId = clientId }
         }
         RecordingStore.save(recordings)
+    }
+
+    // MARK: - Private calls
+
+    /// Callers that are never recorded, newest first.
+    var privateCallers: [PhonebookEntry] {
+        phonebook.filter(\.doNotRecord).sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func privateRule(number: String?, name: String?) -> PhonebookEntry? {
+        PrivateCalls.rule(in: phonebook, number: number, name: name)
+    }
+
+    func setDoNotRecord(_ value: Bool, number: String?, name: String?) {
+        let updated = PrivateCalls.setting(value, number: number, name: name, in: phonebook)
+        guard updated != phonebook else { return }
+        phonebook = updated
+        PhonebookStore.save(phonebook)
+    }
+
+    /// Takes exactly this entry off the private list (other entries with the same name stay).
+    func removePrivate(_ entry: PhonebookEntry) {
+        guard let index = phonebook.firstIndex(where: { $0.id == entry.id }) else { return }
+        phonebook[index].doNotRecord = false
+        phonebook[index].updatedAt = Date()
+        if PrivateCalls.isObsolete(phonebook[index]) { phonebook.remove(at: index) }
+        PhonebookStore.save(phonebook)
     }
 }

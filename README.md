@@ -57,8 +57,11 @@ BrumlikAI lives in your menu bar. When you take a call on your Mac, it records b
 - the client's **requests** as a list,
 - **to‑dos** with deadlines, one click away from Apple Reminders,
 - the agreed **meeting**, one click away from Apple Calendar,
-- the full **transcript**, searchable later,
+- the full **transcript with who said what** — click any sentence to hear that part of the call,
+- a short **email for the client** with what you agreed, ready to open in Mail or send straight away,
 - optionally a ready‑to‑paste **prompt for your AI tool** (Claude, Cursor, …) with the client's websites, servers and stack already in it.
+
+And when the same client calls again, the call panel reminds you what your last call was about and what you were going to do.
 
 The whole app is available in **English and Czech**.
 
@@ -67,7 +70,12 @@ The whole app is available in **English and Czech**.
 | | |
 |---|---|
 | **Automatic call recording** | Detects calls you take on the Mac — iPhone calls over Continuity and FaceTime — and starts recording on its own. Manual recording is one click away. |
+| **Private calls stay private** | A small panel shows up during every recorded call. Click **Private – don't record** and the recording stops and is deleted on the spot — nothing is saved or sent. Family and friends go on a never‑record list, and BrumlikAI then doesn't record their calls at all. |
 | **Both sides of the call** | Your voice from the microphone, the other party from the Mac's audio through a Core Audio process tap. Apps that were only playing music or video when the call started are left out. |
+| **Who said what** | The two sides are transcribed separately, so the transcript knows who said what — and the to‑dos are the things *you* promised, not the client. The other party's voice echoing from your speakers is filtered out. |
+| **Recap of the last call** | When someone you've spoken to calls again, the call panel shows what your last call was about, your to‑dos from it and an upcoming meeting. |
+| **Listen back** | Play the recording in the call detail, with ±15 s and up to 2× speed. Click a sentence in the transcript and the call plays from there. |
+| **Email to the client** | One click writes a short follow‑up with what you agreed and the next steps. Edit it, then open it in Mail — or send it straight through your own SMTP server. |
 | **Transcript & summary** | Whisper large‑v3 and Llama 3.3 70B on DeepInfra. The summary contains only what was said in the call. |
 | **Summaries for your field** | Tell BrumlikAI what you do — web developer, graphic designer, accountant — and the summaries focus on the details that matter to you. |
 | **To‑dos → Reminders** | Action items with deadlines, added to Apple Reminders with one click (the client's name in front). |
@@ -87,17 +95,18 @@ The whole app is available in **English and Czech**.
 flowchart LR
     A["Call taken<br/>on the Mac"] --> B["Call detection<br/>Core Audio: which app<br/>uses the microphone"]
     B --> C["Recording<br/>microphone +<br/>system audio tap"]
-    C --> D["Mixed into M4A<br/>stays on your Mac"]
-    D --> E["Whisper<br/>transcript"]
+    C --> D["Each side on its own<br/>+ mixed M4A<br/>stays on your Mac"]
+    D --> E["Whisper<br/>transcript with<br/>who said what"]
     E --> F["Llama 3.3<br/>summary · requests<br/>to-dos · meeting"]
-    F --> G["Call detail<br/>copy · Calendar<br/>Reminders"]
+    F --> G["Call detail<br/>playback · email<br/>Calendar · Reminders"]
 ```
 
 1. **Detection.** Every two seconds BrumlikAI asks Core Audio which processes are using the microphone. When FaceTime or the macOS call services (`avconferenced`, `callservicesd`) capture it for a few seconds, a call is on. When they stop for about six seconds, the call has ended — a short mute doesn't split the recording.
 2. **Recording.** Two tracks are recorded at once: the microphone (you) and a Core Audio process tap of the Mac's audio output (the other party). BrumlikAI itself and apps that were only playing audio when the call started are excluded from the tap.
 3. **Caller.** The number or name is read from the call window and looked up in BrumlikAI's phonebook first, then in Contacts.
-4. **Processing.** The tracks are mixed into one M4A file. Whisper turns it into a transcript (long calls are split into parts), and Llama 3.3 70B returns a structured summary: the summary, the requests, to‑dos, an agreed meeting and — if you turned it on — an AI prompt.
+4. **Processing.** The tracks are mixed into one M4A file for playback, and each side is also saved on its own as a small speech file. Whisper transcribes the two sides separately (long calls in parts). BrumlikAI keeps only what was audible on each side — Whisper tends to invent text over silence — drops the other party's voice that your microphone picked up from the speakers, and merges both sides by time into a transcript that knows who said what. Llama 3.3 70B then returns a structured summary: a one‑line headline, the summary, the requests, your to‑dos, an agreed meeting and — if you turned it on — an AI prompt. The separate side files are deleted once the transcript is done.
 5. **Result.** You get a notification and the call appears in the menu‑bar history.
+6. **Next call.** When the same number, client or contact calls again, the call panel recalls the headline, to‑dos and upcoming meeting of your last call with them.
 
 ## Requirements
 
@@ -157,8 +166,8 @@ The setup guide (onboarding, *Settings → Permissions & setup guide*, or the ba
 | **Calendars** | Recommended | Saving meetings | System Settings → Privacy & Security → Calendars |
 | **Reminders** | Recommended | Saving to‑dos | System Settings → Privacy & Security → Reminders |
 | **Notifications** | Recommended | "Recording started", "Summary ready" | System Settings → Notifications |
-| **Contacts** | Optional | Caller names | System Settings → Privacy & Security → Contacts |
-| **Screen recording** | Optional | Reading the caller's name from the call window | System Settings → Privacy & Security → Screen & System Audio Recording |
+| **Contacts** | Optional | Caller names; recognising private calls | System Settings → Privacy & Security → Contacts |
+| **Screen recording** | Optional | Reading the caller's name from the call window — also how private calls are recognised before recording | System Settings → Privacy & Security → Screen & System Audio Recording |
 
 > [!NOTE]
 > macOS doesn't tell apps whether they may record system audio. The guide's **Test** button therefore plays a short sound and checks that BrumlikAI hears it.
@@ -173,6 +182,35 @@ The setup guide (onboarding, *Settings → Permissions & setup guide*, or the ba
 > [!IMPORTANT]
 > Recording calls is subject to data protection law (GDPR in the EU) and often requires the other party's consent. Tell them at the start of every call that it's being recorded, and check the rules that apply to you.
 
+### Private calls
+
+When a call starts recording, a small panel appears at the top of the screen and says what happens next:
+
+- **Do nothing** — the call is recorded and summarised after you hang up, as usual.
+- **Private – don't record** — the recording stops and is deleted right away. Nothing is saved, nothing is sent for processing, and the call doesn't show up in the history.
+
+After a few seconds the panel shrinks to a small pill so it isn't in the way; **Private…** opens it again together with the explanation. The same button is in the menu‑bar window while a call is being recorded.
+
+**Never record a number.** Right after you mark a call as private, the panel asks **Never record this number?** — click **Never record** and calls with that number won't be recorded again (or **Just this once**). You can also:
+
+- manage the list in **Settings → Private calls** — add a number, optionally with the name, or remove one,
+- turn on **Never record calls with this number** in *Edit contact*.
+
+When someone on the list calls, BrumlikAI doesn't record at all. It briefly shows **Private call – not recording** with a **Record anyway** button, in case you need this one after all.
+
+> [!NOTE]
+> To recognise a private caller before recording, BrumlikAI reads the number or name from the call window (the *Screen recording* permission) and looks it up in your Contacts. macOS often shows just the contact's name, so add the name too — the way it's saved in your contacts. Without these permissions you can still mark any call private with one click.
+
+### Recap of the last call
+
+When someone you've already spoken to calls — the same number, a contact with the same name, or someone from the same client company — the call panel shows **Last call** with:
+
+- what the call was about, in one sentence,
+- **Your to‑dos** from it (up to three),
+- an agreed **meeting** that's still ahead.
+
+**Open** brings up the whole detail of that call. The panel stays open a little longer when it has a recap; once it shrinks to a pill, **Last call** opens it again. Turn it off in **Settings → Recall the last call when someone calls**.
+
 ### Call history
 
 The menu‑bar window lists your calls with the caller, company, time and length. A red icon means recording, a spinner means processing, an orange triangle means something failed. Click a call to open its detail.
@@ -186,9 +224,11 @@ The menu‑bar window lists your calls with the caller, company, time and length
 | **Prompt for your AI** | Only when turned on in Settings. Copy it into Claude, Cursor or another AI tool. |
 | **To‑dos from the call** | *Add to Reminders* for each one; the client's name is added in front. |
 | **Proposed meeting** | Check it, *Edit* the time, length, place or notes, then *Add to Calendar*. |
-| **Full transcript** | Expand and copy. |
+| **Email to the client** | *Write email* drafts a short follow‑up — what you agreed and the next steps — in the language of the call, addressed to the email on the client's card. Edit it, then *Open in Mail*, or *Send* it through your own SMTP server (you confirm first). *Write again* makes a new version. |
+| **Recording and transcript** | Play the call with ±15 s and 1×–2× speed. The transcript shows who said what — *You* and the caller's name — with times; click a sentence to play the call from there. *Copy* includes the names and times. |
 | **Audio check** | Warns when your side or the other party's side was completely silent. |
 | **Processing failed** | Shows the reason; *Try again* continues where it stopped (e.g. after you fix the token). |
+| **Delete call** | The bin icon at the top deletes the recording, transcript and summary for good. A call that is still being processed stops uploading. |
 
 ### Clients
 
@@ -210,6 +250,16 @@ Turn on **Settings → Show AI prompts under the summary** to get, for every cal
 
 The search field above the history searches callers, numbers, companies, transcripts, summaries, requests and to‑dos.
 
+### Emails to clients
+
+In the call detail, **Write email** turns the call into a short follow‑up for the client: thanks for the call, what you agreed, who does what and by when, and the meeting if one was set. It uses only what was said, leaves out internal details, and ends with a closing line so your own signature follows. How it leaves your Mac is up to you in **Settings → Emails to clients**:
+
+- **Mail app** (default) — the email opens in Mail with the address, subject and text filled in; you check it and send it there.
+- **My SMTP server** — BrumlikAI sends it itself when you click **Send** and confirm. Fill in the server, security, port, username, password, the sender's name and address, and click **Test connection** (it signs in and out, nothing is sent).
+
+> [!NOTE]
+> The connection to your SMTP server is always encrypted — **SSL/TLS** (usually port 465) or **STARTTLS** (usually 587). If the server doesn't offer STARTTLS, BrumlikAI stops rather than sending your password unencrypted. The password is kept in the macOS Keychain. Mail sent over SMTP doesn't appear in your *Sent* folder, so **Send me a blind copy** is on by default.
+
 ## Settings
 
 | Setting | What it does |
@@ -222,8 +272,11 @@ The search field above the history searches callers, numbers, companies, transcr
 | **What you do for clients** | Focuses the summaries (and AI prompts) on your field. |
 | **Default calendar / Reminders list** | Where meetings and to‑dos are saved. |
 | **Detect calls automatically** | On by default. |
+| **Recall the last call when someone calls** | On by default. The call panel shows what your last call with that person was about. |
 | **I inform callers that calls are recorded** | Required for automatic recording. |
 | **Start BrumlikAI at login** | Adds BrumlikAI to your login items. |
+| **Private calls** | Numbers (or contact names) whose calls are never recorded. |
+| **Emails to clients** | Send follow‑ups through the Mail app (default) or your own SMTP server: server, SSL/TLS or STARTTLS, port, username, password (kept in the Keychain), sender's name and address, a blind copy to yourself, *Test connection*. |
 | **Updates** | Your version, *Check now*, check automatically (on by default), install automatically (off by default). |
 | **Diagnostics** | A 5‑second test recording, your microphone input, and the apps using audio right now. |
 | **Run the setup guide again** | Restarts the onboarding. |
@@ -244,20 +297,22 @@ The search field above the history searches callers, numbers, companies, transcr
 | What | Where |
 |---|---|
 | Recordings (M4A) | `~/Library/Application Support/BrumlikAI/recordings/` |
-| Transcripts, summaries, call history | `~/Library/Application Support/BrumlikAI/recordings.json` |
+| Transcripts, summaries, email drafts, call history | `~/Library/Application Support/BrumlikAI/recordings.json` |
 | Clients | `~/Library/Application Support/BrumlikAI/clients.json` |
-| Phonebook | `~/Library/Application Support/BrumlikAI/phonebook.json` |
-| DeepInfra token | macOS Keychain |
+| Phonebook and private calls | `~/Library/Application Support/BrumlikAI/phonebook.json` |
+| DeepInfra token, SMTP password | macOS Keychain |
 | Settings | macOS user defaults (`cz.brumlik.BrumlikAI`) |
 
-Deleting a call in the app deletes its audio too.
+While a call is being transcribed, each side is also kept as a small separate file next to the recording; it's deleted as soon as the transcript is done. Deleting a call in the app deletes its audio too. A call marked **Private – don't record** is deleted while it's being recorded and never leaves your Mac; calls from numbers on the private list aren't recorded at all.
 
 **Sent over the internet**
 
 | To | What | When |
 |---|---|---|
-| DeepInfra | The call audio | Transcription |
+| DeepInfra | The call audio — each side on its own | Transcription |
 | DeepInfra | The transcript; your work description; the assigned client's name, IČO, contact details and managed systems (never credential hints) | Summary and AI prompt |
+| DeepInfra | The transcript and summary of the call, the client's name and contact person | When you click *Write email* |
+| Your SMTP server | The email, to the client (and a blind copy to you, if turned on) | When you click *Send* |
 | GitHub | A request for the latest release | Update checks |
 | ARES (ares.gov.cz) | The company ID you typed | ARES lookup |
 
@@ -299,6 +354,24 @@ The token is wrong, expired or was deleted. Create a new one in the DeepInfra da
 <summary><b>"Processing failed"</b></summary>
 
 The detail shows the reason (no internet, token, empty recording, …). Fix it and click **Try again** — finished steps aren't repeated.
+</details>
+
+<details>
+<summary><b>The transcript has no names, or gives the client's words to me</b></summary>
+
+Who said what needs both sides of the call: if one of them was silent (see the audio warning in the call detail), the transcript is shown without names. With the Mac's speakers, the microphone also hears the other party; BrumlikAI drops what it heard at the same moment from both sides, but headphones give the cleanest result. Calls recorded by older versions have no names either.
+</details>
+
+<details>
+<summary><b>Which SMTP settings should I use?</b></summary>
+
+The ones your email provider lists for sending mail: the server name, the port and *SSL/TLS* (usually 465) or *STARTTLS* (usually 587). The username is usually your full email address. Some providers, Gmail among them, need an app password instead of your normal one. Click **Test connection** to check everything before the first email.
+</details>
+
+<details>
+<summary><b>Emails sent from BrumlikAI aren't in my Sent folder</b></summary>
+
+Mail sent over SMTP isn't saved in *Sent* by the server. Keep **Send me a blind copy** turned on (it is by default) and every email also lands in your inbox. If you'd rather have it in *Sent*, choose **Mail app** in *Settings → Emails to clients*.
 </details>
 
 <details>
@@ -358,6 +431,18 @@ open -W -n /Applications/BrumlikAI.app --args --self-test 20 --report ~/Desktop/
 ```
 
 Add `--process` to also transcribe and summarise the recording (this uses your DeepInfra token). The report contains the audio levels of both sides, the microphone input and access, the apps using audio, whether a call was detected, the processing status or error, the transcript and the summary. The test recording is deleted afterwards.
+
+To check the call panel without a call, `--preview-call-panel <folder>` shows each of its states for a moment (nothing is recorded), saves a PNG of each and `frames.json` with the panel's position, then quits:
+
+```bash
+open -W -n /Applications/BrumlikAI.app --args --preview-call-panel ~/Desktop/brumlik-panel
+```
+
+`--preview-call-detail <folder>` opens a made‑up call in the call detail window — with the player, the transcript with who said what and an email — saves screenshots of its top and bottom, and quits. It works on a temporary data folder, so your calls aren't touched:
+
+```bash
+open -W -n /Applications/BrumlikAI.app --args --preview-call-detail ~/Desktop/brumlik-detail
+```
 
 ## Building from source
 
@@ -422,6 +507,9 @@ BrumlikAI/
 │   ├── Core/
 │   │   ├── AppState.swift          Recordings, clients, phonebook, settings
 │   │   ├── Models.swift            Recording, Client, CallSummary, MeetingProposal, TaskProposal…
+│   │   ├── Transcript.swift        Who said what: loudness, echo, merging both sides
+│   │   ├── CallBriefing.swift      Recap of the last call with the same caller
+│   │   ├── Email.swift             Email drafts, SMTP settings, addresses
 │   │   ├── Localization.swift      English & Czech texts
 │   │   ├── SetupChecklist.swift    Live permission status for the setup guide
 │   │   ├── RecordingStore.swift    Files on disk
@@ -434,19 +522,25 @@ BrumlikAI/
 │   │   ├── SystemAudioTap.swift    Core Audio process tap (the other party)
 │   │   ├── MicRecorder.swift       Microphone (you)
 │   │   ├── AudioMixer.swift, AudioChunker.swift
-│   │   ├── DeepInfraClient.swift   Whisper transcription, Llama summaries
+│   │   ├── AudioLevels.swift       Small speech copy of each side, loudness over time
+│   │   ├── CallTranscriber.swift   Transcribes both sides separately and merges them
+│   │   ├── DeepInfraClient.swift   Whisper transcription, Llama summaries and emails
 │   │   ├── RecordingCoordinator.swift The whole pipeline: record → mix → transcribe → summarise
+│   │   ├── SMTPClient.swift        Sending emails over SMTP (SSL/TLS or STARTTLS)
+│   │   ├── MailComposer.swift      Opening an email in Mail
 │   │   ├── CalendarService.swift, RemindersService.swift, ContactsService.swift, AresClient.swift
 │   │   ├── UpdateChecker.swift     Signed updates from GitHub Releases
 │   │   ├── LaunchAgent.swift       Start at login
-│   │   └── SelfTest.swift          Diagnostics and --self-test
-│   └── UI/                         SwiftUI views: menu, call detail, clients, settings, setup guide, onboarding
-└── Tests/BrumlikAITests/           Unit tests
+│   │   ├── SelfTest.swift          Diagnostics, --self-test and --preview-call-panel
+│   │   └── CallDetailPreview.swift --preview-call-detail
+│   └── UI/                         SwiftUI views: menu, call panel (CallOverlay), call detail with player
+│                                   (CallPlayback) and email (FollowUpEmailCard), clients, settings, setup guide, onboarding
+└── Tests/BrumlikAITests/           Unit tests: private calls with a fake recorder, who said what on generated
+                                    audio, the last-call recap, SMTP against a scripted server
 ```
 
 ## Ideas for the future
 
-- Speaker labels — you and the other party transcribed separately.
 - Choosing the AI models in Settings.
 - Encrypting recordings on disk.
 - Signing with an Apple Developer ID and notarization.

@@ -13,12 +13,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var popover: NSPopover!
     private var callDetector: CallDetector!
     private var recordingCoordinator: RecordingCoordinator!
+    private var callOverlay: CallOverlayController?
     private var windows: [String: NSWindow] = [:]
     private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         recordingCoordinator = RecordingCoordinator(appState: appState)
+
+        let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--preview-call-panel"), arguments.indices.contains(index + 1) {
+            let directory = URL(fileURLWithPath: arguments[index + 1])
+            Task {
+                await SelfTest.previewCallPanel(to: directory, coordinator: recordingCoordinator, loc: loc)
+                NSApp.terminate(nil)
+            }
+            return
+        }
+
+        if let index = arguments.firstIndex(of: "--preview-call-detail"), arguments.indices.contains(index + 1) {
+            let directory = URL(fileURLWithPath: arguments[index + 1])
+            Task {
+                await CallDetailPreview.run(to: directory, loc: loc)
+                NSApp.terminate(nil)
+            }
+            return
+        }
 
         if let options = SelfTest.Options(arguments: CommandLine.arguments) {
             Task {
@@ -30,6 +50,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         callDetector = CallDetector { [weak self] event in
             self?.recordingCoordinator.handleCallEvent(event)
+        }
+        callOverlay = CallOverlayController(coordinator: recordingCoordinator, loc: loc) { [weak self] id in
+            self?.openRecordingDetail(id: id)
         }
         setupStatusItem()
         setupPopover()
@@ -135,9 +158,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func openRecordingDetail(id: UUID) {
-        present("detail-\(id.uuidString)", title: loc.t(.detailTitle), resizable: true) {
-            RecordingDetailView(recordingId: id)
+        let key = "detail-\(id.uuidString)"
+        present(key, title: loc.t(.detailTitle), resizable: true) {
+            RecordingDetailView(recordingId: id, onDeleted: { [weak self] in self?.closeWindow(key) })
         }
+    }
+
+    private func closeWindow(_ key: String) {
+        windows[key]?.close()
+        windows[key] = nil
     }
 
     func showOnboarding() {

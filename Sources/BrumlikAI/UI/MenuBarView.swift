@@ -19,6 +19,9 @@ struct MenuBarView: View {
         VStack(spacing: 0) {
             statusBar
             Divider()
+            if coordinator.isRecording {
+                privateCallCard
+            }
             banners
             if !appState.recordings.isEmpty {
                 searchBar
@@ -36,6 +39,33 @@ struct MenuBarView: View {
             footer
         }
         .frame(width: 420, height: 600)
+    }
+
+    /// While recording: what happens if you do nothing, and the way out for a private call.
+    private var privateCallCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if coordinator.autoStarted {
+                Label(loc.t(.hudKeepHint), systemImage: "checkmark.circle")
+            }
+            Label(loc.t(.hudPrivateHint), systemImage: "lock")
+            Button {
+                Task { await coordinator.discardRecording() }
+            } label: {
+                Label(loc.t(.hudPrivateButton), systemImage: "lock.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .padding(.top, 2)
+        }
+        .font(.caption)
+        .foregroundColor(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.red.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.red.opacity(0.18), lineWidth: 1))
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
     }
 
     @ViewBuilder

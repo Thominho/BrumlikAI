@@ -16,7 +16,7 @@ enum DeepInfraError: LocalizedError {
     }
 }
 
-final class DeepInfraClient {
+final class DeepInfraClient: SpeechTranscribing {
     private let baseURL = URL(string: "https://api.deepinfra.com/v1/")!
     private let whisperModel = "openai/whisper-large-v3"
     private let chatModel = "meta-llama/Llama-3.3-70B-Instruct"
@@ -32,50 +32,36 @@ final class DeepInfraClient {
         _ = try await send(request)
     }
 
-    /// Transcribes a recording. Long recordings are split into chunks and the texts joined.
-    /// `language` nil lets Whisper detect the language.
-    func transcribe(
-        audio url: URL,
-        language: String?,
-        progress: @escaping @Sendable (Int, Int) -> Void = { _, _ in }
-    ) async throws -> String {
-        _ = try currentToken()
-        let chunks = try await AudioChunker.split(url: url)
-        defer { AudioChunker.cleanup(chunks, except: url) }
-
-        var texts: [String] = []
-        for (index, chunk) in chunks.enumerated() {
-            progress(index + 1, chunks.count)
-            texts.append(try await transcribeChunk(chunk, language: language))
-        }
-        return texts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     func summarize(
         transcript: String,
+        hasSpeakers: Bool,
         clientContext: String?,
         userRole: String?,
         language: AppLanguage,
         now: Date
     ) async throws -> CallSummary {
+        let speakers = hasSpeakers
+            ? "Every line of the transcript starts with who is speaking: USER (the app's user) or CLIENT (the other party)."
+            : "The transcript has no speaker labels — work out from the context who is speaking."
         let system = """
-        You summarise a recorded phone call between the app's user and a client. The transcript has no speaker \
-        labels — work out from the context who is speaking.
+        You summarise a recorded phone call between the app's user and a client. \(speakers)
 
         STRICT RULES
         1. Never invent anything. If something wasn't said in the call, leave it out. An empty field is better than a guess.
         2. Write every text value in \(language.llmName), whatever language the call was in.
-        3. humanSummary — for the user: as much concrete information from the call as possible (what the client wants, \
+        3. headline — one short sentence (at most 90 characters) saying what the call was about and what was agreed.
+        4. humanSummary — for the user: as much concrete information from the call as possible (what the client wants, \
         details, numbers, names, deadlines, decisions). Factual, no interpretation, 3–10 sentences. Address the user as \
         "you" and call the other party "the client" (or by their name if it was said).
-        4. aiPrompt — one imperative instruction for another AI tool (e.g. Claude or Cursor) that will do the actual work. \
+        5. aiPrompt — one imperative instruction for another AI tool (e.g. Claude or Cursor) that will do the actual work. \
         Start with an imperative verb. Add concrete details from CLIENT CONTEXT (URLs, servers, stack, project type) so it \
         can be pasted as is. If there is no client context, say so at the very start of aiPrompt.
-        5. requests — the client's requests as short bullet points, as they were said.
-        6. tasks — concrete action items for the user, at most 8. Set dueISO only if a deadline was said explicitly.
-        7. meeting — only if a specific date and time for a meeting were agreed; otherwise null.
-        8. Use CLIENT CONTEXT only for aiPrompt — never copy it into humanSummary or requests.
-        9. Return ONLY valid JSON, no markdown.
+        6. requests — the client's requests as short bullet points, as they were said.
+        7. tasks — concrete action items for the user (what the user promised or was asked to do), at most 8. What the \
+        client promised to do belongs in humanSummary, not in tasks. Set dueISO only if a deadline was said explicitly.
+        8. meeting — only if a specific date and time for a meeting were agreed; otherwise null.
+        9. Use CLIENT CONTEXT only for aiPrompt — never copy it into headline, humanSummary or requests.
+        10. Return ONLY valid JSON, no markdown.
 
         Current time: \(ISO8601DateFormatter.brumlik.string(from: now)) (time zone \(TimeZone.current.identifier))
 
@@ -88,6 +74,7 @@ final class DeepInfraClient {
 
         JSON schema:
         {
+          "headline": "string",
           "humanSummary": "string",
           "aiPrompt": "string",
           "requests": ["string"],
@@ -135,6 +122,68 @@ final class DeepInfraClient {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// A short follow-up email from the user to the person they spoke with, built only from what was said.
+    func draftFollowUpEmail(
+        transcript: String,
+        summary: CallSummary,
+        recipientName: String?,
+        company: String?,
+        language: AppLanguage,
+        now: Date
+    ) async throws -> (subject: String, body: String) {
+        let system = """
+        You write a short follow-up email that the app's user sends to the person they just spoke with on the phone.
+
+        STRICT RULES
+        1. Use only what was said in the call. Never invent facts, prices, dates or promises.
+        2. Write in the language the call was held in (judge by the transcript). If you can't tell, write in \(language.llmName).
+        3. Structure: a greeting; thanks for the call; a short recap of what you talked about; the agreed next steps — \
+        who does what and by when; the meeting date and time if one was agreed; a polite closing line.
+        4. Polite, professional and brief — at most about 150 words. Use formal address (in Czech "vykání", and the \
+        vocative in the greeting, e.g. "Dobrý den, pane Nováku,"). If the recipient's name isn't known, greet neutrally \
+        ("Dobrý den," / "Hello,").
+        5. Leave out internal notes, technical details meant only for the user, and anything about recording, \
+        transcripts or AI.
+        6. End with a closing phrase only (e.g. "S pozdravem" or "Best regards"), without a name — the user's own mail \
+        signature follows.
+        7. The subject is short and specific (e.g. "Shrnutí našeho telefonátu – nový e-shop").
+        8. Plain text with line breaks, no markdown.
+        9. Return ONLY valid JSON: {"subject": "string", "body": "string"}
+
+        Today: \(ISO8601DateFormatter.brumlik.string(from: now)) (time zone \(TimeZone.current.identifier))
+
+        RECIPIENT
+        Name: \(recipientName ?? "unknown")
+        Company: \(company ?? "unknown")
+        """
+        var material = """
+        CALL SUMMARY (written for the user)
+        \(summary.humanSummary)
+        """
+        if !summary.requests.isEmpty {
+            material += "\n\nCLIENT'S REQUESTS\n" + summary.requests.map { "- \($0)" }.joined(separator: "\n")
+        }
+        if let tasks = summary.tasks, !tasks.isEmpty {
+            material += "\n\nUSER'S NEXT STEPS\n" + tasks.map { task in
+                "- \(task.title)" + (task.dueISO.map { " (by \($0))" } ?? "")
+            }.joined(separator: "\n")
+        }
+        if let meeting = summary.meeting {
+            material += "\n\nAGREED MEETING\n\(meeting.title), \(meeting.startISO), \(meeting.durationMinutes) min"
+            if let location = meeting.location, !location.isEmpty { material += ", \(location)" }
+        }
+        material += "\n\nTRANSCRIPT\n" + String(transcript.prefix(24_000))
+
+        let content = try await chat(system: system, user: material, temperature: 0.3, json: true)
+        struct Draft: Decodable { let subject: String?; let body: String? }
+        guard let data = Self.extractJSONObject(from: content),
+              let draft = try? JSONDecoder().decode(Draft.self, from: data),
+              let body = draft.body?.trimmingCharacters(in: .whitespacesAndNewlines), !body.isEmpty else {
+            throw DeepInfraError.decodingFailed
+        }
+        return ((draft.subject ?? "").trimmingCharacters(in: .whitespacesAndNewlines), body)
+    }
+
     /// Takes the JSON object out of a reply that may be wrapped in a markdown fence or prose.
     static func extractJSONObject(from text: String) -> Data? {
         guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end else { return nil }
@@ -153,7 +202,9 @@ final class DeepInfraClient {
 
     // MARK: - HTTP
 
-    private func transcribeChunk(_ url: URL, language: String?) async throws -> String {
+    /// Transcribes one file (up to about 25 MB) into segments with times from the start of the file.
+    /// `language` nil lets Whisper detect the language.
+    func transcribeSegments(of url: URL, language: String?) async throws -> [WhisperSegment] {
         var request = try authorizedRequest("inference/\(whisperModel)")
         request.httpMethod = "POST"
         request.timeoutInterval = 300
@@ -174,17 +225,29 @@ final class DeepInfraClient {
         body.append(Data("\r\n--\(boundary)--\r\n".utf8))
         request.httpBody = body
 
+        return try Self.parseWhisperResponse(try await send(request))
+    }
+
+    /// Whisper's reply: segments with times, or at least the whole text.
+    static func parseWhisperResponse(_ data: Data) throws -> [WhisperSegment] {
         struct WhisperResponse: Decodable {
             let text: String?
             let segments: [Segment]?
-            struct Segment: Decodable { let text: String }
+            struct Segment: Decodable {
+                let start: Double?
+                let end: Double?
+                let text: String
+            }
         }
-        let data = try await send(request)
         guard let decoded = try? JSONDecoder().decode(WhisperResponse.self, from: data) else {
             throw DeepInfraError.decodingFailed
         }
-        if let text = decoded.text { return text }
-        if let segments = decoded.segments { return segments.map(\.text).joined(separator: " ") }
+        if let segments = decoded.segments, !segments.isEmpty {
+            return segments.map { WhisperSegment(start: $0.start ?? 0, end: $0.end ?? $0.start ?? 0, text: $0.text) }
+        }
+        if let text = decoded.text {
+            return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [WhisperSegment(start: 0, end: 0, text: text)]
+        }
         throw DeepInfraError.decodingFailed
     }
 

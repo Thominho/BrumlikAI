@@ -1,5 +1,6 @@
 import Foundation
 import CoreAudio
+import AVFoundation
 
 enum RecorderError: LocalizedError {
     case alreadyRecording
@@ -22,9 +23,24 @@ enum RecorderError: LocalizedError {
 }
 
 /// Records both sides of a call into two part files: the microphone and the system audio.
+/// What the coordinator needs from a recorder; tests use a fake that touches no audio hardware.
+@MainActor
+protocol CallAudioRecorder: AnyObject {
+    func requestAccessIfNeeded() async
+    func start(recordingId id: UUID, mode: SystemTapMode) throws
+    func stop() throws -> AudioRecorder.Result
+}
+
 /// If one source fails, the other keeps recording and the failure becomes a warning on the recording.
 @MainActor
-final class AudioRecorder {
+final class AudioRecorder: CallAudioRecorder {
+    /// Until access is decided, macOS hands the app only silence, so ask before the recording starts.
+    func requestAccessIfNeeded() async {
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            _ = await AVCaptureDevice.requestAccess(for: .audio)
+        }
+    }
+
     struct Result {
         let systemPeak: Float?
         let micPeak: Float?

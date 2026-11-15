@@ -119,6 +119,50 @@ enum SelfTest {
         write(report, to: options.reportURL)
     }
 
+    /// `--preview-call-panel <folder>`: shows every state of the call panel (nothing is recorded),
+    /// saves a PNG of each and a JSON with the panel's frames, then quits.
+    static func previewCallPanel(to directory: URL, coordinator: RecordingCoordinator, loc: LocalizationManager) async {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let controller = CallOverlayController(coordinator: coordinator, loc: loc)
+        let caller = CallerLabel(name: "Jan Novák", number: "+420 777 123 456")
+        let briefing = CallBriefing(
+            recordingId: UUID(),
+            date: Date().addingTimeInterval(-6 * 86_400),
+            headline: loc.language == .czech
+                ? "Nabídka na nový e-shop; klient chce spustit před Vánoci."
+                : "Quote for a new online shop; the client wants it live before Christmas.",
+            tasks: loc.language == .czech
+                ? ["Poslat cenovou nabídku do pátku", "Ověřit volnou doménu"]
+                : ["Send the quote by Friday", "Check the domain is free"],
+            meeting: Date().addingTimeInterval(3 * 86_400)
+        )
+        let states: [(String, CallOverlay, Double)] = [
+            ("1-recording", .recording(caller), 1),
+            ("2-pill", .recording(caller), 13),
+            ("3-discarded-ask", .discarded(caller, canRemember: true), 1),
+            ("4-remembered", .remembered(caller), 1),
+            ("5-skipped", .skipped(CallerLabel(name: "Máma")), 1),
+            ("6-briefing", .recording(caller, briefing: briefing), 1),
+            ("7-briefing-pill", .recording(caller, briefing: briefing), 31)
+        ]
+
+        struct Shot: Encodable { let name: String; let frame: [CGFloat]; let screen: [CGFloat]? }
+        var shots: [Shot] = []
+        for (name, state, wait) in states {
+            if !name.hasSuffix("pill") { coordinator.previewOverlay(state) }
+            try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            if let shot = controller.snapshot(to: directory.appendingPathComponent("\(name).png")) {
+                let screen = shot.screen.map { [$0.minX, $0.minY, $0.width, $0.height] }
+                shots.append(Shot(name: name, frame: [shot.frame.minX, shot.frame.minY, shot.frame.width, shot.frame.height], screen: screen))
+            }
+        }
+        coordinator.previewOverlay(nil)
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        if let data = try? JSONEncoder.brumlik.encode(shots) {
+            try? data.write(to: directory.appendingPathComponent("frames.json"))
+        }
+    }
+
     nonisolated static func describe(_ status: AVAuthorizationStatus) -> String {
         switch status {
         case .authorized: return "authorized"
