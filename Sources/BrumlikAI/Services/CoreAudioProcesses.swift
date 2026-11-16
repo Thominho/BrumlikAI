@@ -19,7 +19,27 @@ enum CoreAudioProcesses {
             return "pid \(pid)"
         }
         var isCallProcess: Bool { CoreAudioProcesses.isCallProcess(bundleID: bundleID, executable: executable) }
+        /// Chrome or the WhatsApp app, where Google Meet and WhatsApp calls run.
+        var isOnlineCallApp: Bool { OnlineCallApps.contains(bundleID: bundleID) }
         var isCurrentProcess: Bool { pid == ProcessInfo.processInfo.processIdentifier }
+    }
+
+    /// What an app — all its processes together — is doing with audio right now.
+    struct AppAudio: Equatable {
+        var input = false
+        var output = false
+
+        /// Capturing the microphone and playing sound at once: that's what a call looks like.
+        /// The microphone alone may be a Meet waiting room, a voice message or dictation.
+        var inCall: Bool { input && output }
+    }
+
+    /// The audio of the app whose processes' bundle IDs start with `bundlePrefix` (Chrome runs audio in helpers).
+    static func audio(of processes: [Info], bundlePrefix: String) -> AppAudio {
+        processes.filter { $0.bundleID.hasPrefix(bundlePrefix) }.reduce(into: AppAudio()) { result, process in
+            result.input = result.input || process.isRunningInput
+            result.output = result.output || process.isRunningOutput
+        }
     }
 
     /// Processes that handle iPhone (Continuity) and FaceTime calls on the Mac.

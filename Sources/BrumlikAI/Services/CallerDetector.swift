@@ -1,5 +1,28 @@
 import Foundation
+import AppKit
 import CoreGraphics
+
+/// Titles of other apps' windows. macOS shows them only with the Screen Recording permission.
+enum AppWindows {
+    /// The titles of the normal windows of the apps whose bundle ID starts with `bundlePrefix`, front to back —
+    /// windows on other desktops and minimised ones included.
+    static func titles(bundlePrefix: String) -> [String] {
+        let pids = Set(NSWorkspace.shared.runningApplications
+            .filter { $0.bundleIdentifier?.hasPrefix(bundlePrefix) == true }
+            .map(\.processIdentifier))
+        guard !pids.isEmpty,
+              let windows = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        else { return [] }
+        return windows.compactMap { window in
+            guard let pid = window[kCGWindowOwnerPID as String] as? pid_t, pids.contains(pid),
+                  (window[kCGWindowLayer as String] as? Int) == 0,
+                  let title = window[kCGWindowName as String] as? String,
+                  !title.trimmingCharacters(in: .whitespaces).isEmpty
+            else { return nil }
+            return title
+        }
+    }
+}
 
 /// Reads the caller's name or number from the title of the FaceTime / Phone call window.
 /// Other apps' window titles are only visible with the Screen Recording permission.

@@ -102,16 +102,20 @@ struct RecordingDetailView: View {
         return HStack(spacing: 14) {
             ZStack {
                 Circle().fill(Color.accentColor.opacity(0.15)).frame(width: 52, height: 52)
-                Image(systemName: hasAny ? "person.crop.circle.fill" : "questionmark.circle")
-                    .font(.system(size: 26))
+                Image(systemName: rec.onlineCall?.symbol ?? (hasAny ? "person.crop.circle.fill" : "questionmark.circle"))
+                    .font(.system(size: rec.onlineCall == nil ? 26 : 22))
                     .foregroundColor(.accentColor)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(rec.contactName ?? (rec.phoneNumber?.isEmpty == false ? rec.phoneNumber! : loc.t(.detailContactUnknown)))
+                Text(rec.contactName ?? rec.phoneNumber.nonEmpty ?? rec.onlineCall?.displayTitle ?? loc.t(.detailContactUnknown))
                     .font(.system(.title3, design: .rounded)).fontWeight(.semibold)
                 HStack(spacing: 10) {
                     if let phone = rec.phoneNumber, !phone.isEmpty {
                         Label(phone, systemImage: "phone.fill")
+                            .font(.caption).foregroundColor(.secondary)
+                    }
+                    if let online = rec.onlineCall {
+                        Label(online.detail, systemImage: online.symbol)
                             .font(.caption).foregroundColor(.secondary)
                     }
                     if let client = client {
@@ -473,8 +477,10 @@ struct RecordingDetailView: View {
     }
 
     /// How the other side is called in the transcript: their name when it's known.
+    /// A Meet meeting may have several other people, so they're "Others".
     private func otherName(_ rec: Recording) -> String {
-        rec.contactName.nonEmpty ?? appState.client(for: rec)?.contactPerson.nonEmpty ?? loc.t(.transcriptOther)
+        rec.contactName.nonEmpty ?? appState.client(for: rec)?.contactPerson.nonEmpty
+            ?? loc.t(rec.onlineCall?.service == .meet ? .transcriptOthers : .transcriptOther)
     }
 
     private func transcriptCopyText(_ rec: Recording) -> String? {

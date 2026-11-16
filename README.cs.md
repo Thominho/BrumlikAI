@@ -4,7 +4,7 @@
 
 # BrumlikAI
 
-**AI poznámky k telefonátům, které vyřizuješ na Macu.**
+**AI poznámky k hovorům, které vyřizuješ na Macu — z telefonu, Google Meet i WhatsAppu.**
 
 BrumlikAI hovor nahraje, přepíše, sepíše všechno, co v něm skutečně zaznělo,<br>
 a z domluvených schůzek udělá události v Kalendáři a z úkolů připomínky — sama.
@@ -69,7 +69,7 @@ Celá aplikace je **česky i anglicky**.
 
 | | |
 |---|---|
-| **Automatické nahrávání hovorů** | Pozná hovory, které přijmeš na Macu — hovory z iPhonu přes Continuity i FaceTime — a sama začne nahrávat. Ruční nahrávání je na jedno kliknutí. |
+| **Automatické nahrávání hovorů** | Pozná hovory, které přijmeš na Macu — hovory z iPhonu přes Continuity, FaceTime a Google Meet či WhatsApp v Chromu nebo v aplikaci WhatsApp — a sama začne nahrávat. Ruční nahrávání je na jedno kliknutí. |
 | **Soukromé hovory zůstanou soukromé** | Během každého nahrávaného hovoru se ukáže malý panel. Klikneš na **Soukromý – nenahrávat** a nahrávání se zastaví a na místě smaže — nic se neuloží ani neodešle. Rodinu a přátele přidáš do seznamu, který BrumlikAI nenahraje vůbec. |
 | **Obě strany hovoru** | Tvůj hlas z mikrofonu, druhou stranu ze zvuku Macu přes Core Audio process tap. Aplikace, které na začátku hovoru jen přehrávaly hudbu nebo video, se nenahrávají. |
 | **Kdo co řekl** | Obě strany se přepisují zvlášť, takže přepis ví, kdo co řekl — a v úkolech je to, co jsi slíbil *ty*, ne klient. Hlas druhé strany, který se z reproduktorů vrací do mikrofonu, se odfiltruje. |
@@ -101,17 +101,17 @@ flowchart LR
     F --> G["Detail hovoru<br/>přehrávání · e-mail<br/>Kalendář · Připomínky"]
 ```
 
-1. **Rozpoznání.** Každé dvě sekundy se BrumlikAI zeptá Core Audio, které procesy používají mikrofon. Když ho FaceTime nebo systémové služby pro hovory (`avconferenced`, `callservicesd`) drží pár sekund, probíhá hovor. Když ho asi šest sekund nepoužívají, hovor skončil — krátké ztlumení nahrávku nerozdělí.
-2. **Nahrávání.** Nahrávají se dvě stopy zároveň: mikrofon (ty) a Core Audio process tap zvukového výstupu Macu (druhá strana). Samotná BrumlikAI a aplikace, které na začátku hovoru jen přehrávaly zvuk, jsou z tapu vyřazené.
-3. **Volající.** Číslo nebo jméno se přečte z okna hovoru a dohledá nejdřív v telefonním seznamu BrumlikAI, potom v Kontaktech.
+1. **Rozpoznání.** Každé dvě sekundy se BrumlikAI zeptá Core Audio, které procesy používají mikrofon. Když ho FaceTime nebo systémové služby pro hovory (`avconferenced`, `callservicesd`) drží pár sekund, probíhá hovor. Když ho asi šest sekund nepoužívají, hovor skončil — krátké ztlumení nahrávku nerozdělí. Hovor v Google Meet nebo WhatsAppu probíhá, když Chrome nebo aplikace WhatsApp používá mikrofon *a zároveň* přehrává zvuk; v Chromu Meet od WhatsAppu rozliší název okna.
+2. **Nahrávání.** Nahrávají se dvě stopy zároveň: mikrofon (ty) a Core Audio process tap zvukového výstupu Macu (druhá strana). Samotná BrumlikAI a aplikace, které na začátku hovoru jen přehrávaly zvuk, jsou z tapu vyřazené — nikdy ale aplikace, ve které běží hovor v Meetu nebo WhatsAppu.
+3. **Volající.** Číslo nebo jméno se přečte z okna hovoru a dohledá nejdřív v telefonním seznamu BrumlikAI, potom v Kontaktech. U Google Meet se název nebo kód schůzky vezme z názvu okna.
 4. **Zpracování.** Stopy se smíchají do jednoho souboru M4A pro přehrávání a každá strana se navíc uloží zvlášť jako malý soubor s řečí. Whisper přepíše obě strany odděleně (dlouhé hovory po částech). BrumlikAI si nechá jen to, co na dané straně opravdu zaznělo — do ticha si Whisper rád něco vymyslí —, vyřadí hlas druhé strany, který mikrofon zachytil z reproduktorů, a obě strany spojí podle času do přepisu, který ví, kdo co řekl. Llama 3.3 70B pak vrátí strukturované shrnutí: jednovětý titulek, shrnutí, požadavky, tvoje úkoly, domluvenou schůzku a — pokud je zapneš — pokyn pro AI. Samostatné soubory stran se po dokončení přepisu smažou.
 5. **Výsledek.** Přijde oznámení a hovor se objeví v historii v menu baru.
-6. **Další hovor.** Když volá stejné číslo, klient nebo kontakt znovu, panel hovoru připomene titulek, úkoly a nadcházející schůzku z vašeho minulého hovoru.
+6. **Další hovor.** Když volá stejné číslo, klient nebo kontakt znovu — nebo začne další schůzka opakované porady v Google Meet — panel hovoru připomene titulek, úkoly a nadcházející schůzku z vašeho minulého hovoru.
 
 ## Požadavky
 
 - **macOS 14.2 (Sonoma) nebo novější** — Apple Silicon i Intel.
-- **Hovory na Macu:** iPhone se zapnutým *Voláním na jiných zařízeních* (stejný Apple účet, zapnutá Wi‑Fi a Bluetooth), nebo zvukové hovory FaceTime.
+- **Hovory na Macu:** iPhone se zapnutým *Voláním na jiných zařízeních* (stejný Apple účet, zapnutá Wi‑Fi a Bluetooth), zvukové hovory FaceTime, nebo hovory v Google Meet a WhatsAppu v Chromu či v aplikaci WhatsApp.
 - **Mikrofon.** Mac mini, Mac Studio a Mac Pro vestavěný mikrofon nemají — použij sluchátka s mikrofonem.
 - **Účet na DeepInfra** a API token. DeepInfra se platí podle využití; ceny najdeš na [deepinfra.com/pricing](https://deepinfra.com/pricing).
 
@@ -167,7 +167,7 @@ Průvodce nastavením (v úvodním průvodci, v *Nastavení → Průvodce opráv
 | **Připomínky** | Doporučené | Ukládání úkolů | Nastavení systému → Soukromí a zabezpečení → Připomínky |
 | **Oznámení** | Doporučené | „Nahrávání spuštěno“, „Hovor je shrnutý“ | Nastavení systému → Oznámení |
 | **Kontakty** | Nepovinné | Jména volajících; poznání soukromých hovorů | Nastavení systému → Soukromí a zabezpečení → Kontakty |
-| **Nahrávání obrazovky** | Nepovinné | Jméno volajícího z okna hovoru — díky němu BrumlikAI pozná soukromý hovor ještě před nahráváním | Nastavení systému → Soukromí a zabezpečení → nahrávání obrazovky a systémového zvuku |
+| **Nahrávání obrazovky** | Nepovinné | Jméno volajícího z okna hovoru — díky němu BrumlikAI pozná soukromý hovor ještě před nahráváním a v Chromu rozliší Google Meet od WhatsAppu | Nastavení systému → Soukromí a zabezpečení → nahrávání obrazovky a systémového zvuku |
 
 > [!NOTE]
 > macOS aplikacím neprozradí, jestli smějí nahrávat systémový zvuk. Tlačítko **Otestovat** v průvodci proto přehraje krátký zvuk a ověří, že ho BrumlikAI slyší.
@@ -177,10 +177,22 @@ Průvodce nastavením (v úvodním průvodci, v *Nastavení → Průvodce opráv
 ### Nahrávání hovorů
 
 - **Automaticky:** přijmi hovor na Macu (oznámení v rohu obrazovky). Ikona v menu baru se změní na červené tlačítko nahrávání; po zavěšení BrumlikAI nahrávání ukončí a začne hovor zpracovávat. Automatické nahrávání funguje až po dokončení úvodního průvodce a potvrzení, že volající o nahrávání informuješ.
-- **Ručně:** klikni na ikonu v menu baru → **Spustit nahrávání**. Ruční nahrávka zachytí všechno, co Mac přehrává (kromě BrumlikAI), a tvůj mikrofon — hodí se pro hovory přes WhatsApp, Teams nebo Zoom, nebo pro telefon na hlasitý odposlech.
+- **Google Meet a WhatsApp:** připoj se ke schůzce nebo přijmi hovor v Chromu či v aplikaci WhatsApp — BrumlikAI začne i skončí sám, viz [níž](#google-meet-a-whatsapp).
+- **Ručně:** klikni na ikonu v menu baru → **Spustit nahrávání**. Ruční nahrávka zachytí všechno, co Mac přehrává (kromě BrumlikAI), a tvůj mikrofon — hodí se pro hovory přes Teams nebo Zoom, nebo pro telefon na hlasitý odposlech.
 
 > [!IMPORTANT]
 > Nahrávání hovorů podléhá ochraně osobních údajů (GDPR) a často vyžaduje souhlas druhé strany. Na začátku každého hovoru jí řekni, že ho nahráváš, a ověř si pravidla, která se na tebe vztahují.
+
+### Google Meet a WhatsApp
+
+BrumlikAI nahrává hovory v Google Meet a WhatsAppu stejně jako telefonáty — v **Chromu** i v **aplikaci WhatsApp** pro Mac.
+
+- **Kdy začne:** jakmile Chrome nebo WhatsApp pár sekund používá mikrofon *a zároveň* přehrává zvuk. Čekárna Meetu (jen mikrofon) ani nahrávání hlasové zprávy ve WhatsAppu se nepočítá. Hovor skončí, když aplikace mikrofon pustí — ztlumení v Meetu ho neukončí.
+- **Meet nebo WhatsApp v Chromu** BrumlikAI rozliší podle názvu okna (*Meet - abc-defg-hij*, *WhatsApp*), k čemuž potřebuje oprávnění *Nahrávání obrazovky*. Bez něj hovory v Chromu sám nenahraje a v *Nastavení* uvidíš upozornění s tlačítkem **Povolit**.
+- **Panel hovoru** funguje stejně: **Soukromý – nenahrávat** nahrávku hned smaže. Schůzka nemá číslo, které by šlo dát na soukromý seznam — když nechceš Meet a WhatsApp nahrávat vůbec, vypni *Nastavení → Nahrávat hovory z Google Meet a WhatsAppu*.
+- **Opakované porady:** všechny schůzky opakované události v Kalendáři Google mají stejný kód Meetu, takže panel připomene tu minulou a klient, kterého jsi k ní přiřadil, se přiřadí i k další.
+- **Víc lidí:** ve schůzce jsou všichni kromě tebe druhou stranou hovoru — přepis je označí jako *Ostatní*.
+- Jiné hovory v prohlížeči, třeba Teams nebo Zoom, BrumlikAI sám nepozná — nahraj je ručně.
 
 ### Soukromé hovory
 
@@ -273,6 +285,7 @@ V detailu hovoru **Napsat e‑mail** udělá z hovoru krátký e‑mail pro klie
 | **Výchozí kalendář / seznam Připomínek** | Kam se ukládají schůzky a úkoly. |
 | **Rozpoznávat hovory automaticky** | Ve výchozím stavu zapnuté. |
 | **Při hovoru připomenout minulý hovor** | Ve výchozím stavu zapnuté. Panel hovoru ukáže, o čem byl tvůj minulý hovor s tímto člověkem. |
+| **Nahrávat hovory z Google Meet a WhatsAppu** | Ve výchozím stavu zapnuté. Hovory v Chromu i v aplikaci WhatsApp; aby BrumlikAI v Chromu rozlišil Meet od WhatsAppu, potřebuje *Nahrávání obrazovky*. |
 | **Druhou stranu informuji o nahrávání** | Nutné pro automatické nahrávání. |
 | **Spouštět BrumlikAI po přihlášení** | Přidá BrumlikAI mezi položky po přihlášení. |
 | **Soukromé hovory** | Čísla (nebo jména kontaktů), jejichž hovory se nikdy nenahrají. |
@@ -303,7 +316,7 @@ V detailu hovoru **Napsat e‑mail** udělá z hovoru krátký e‑mail pro klie
 | DeepInfra token, heslo k SMTP | Klíčenka macOS |
 | Nastavení | uživatelské předvolby macOS (`cz.brumlik.BrumlikAI`) |
 
-Během přepisu je vedle nahrávky ještě každá strana uložená zvlášť jako malý soubor; jakmile je přepis hotový, smaže se. Smazáním hovoru v aplikaci se smaže i jeho zvuk. Hovor označený jako **Soukromý – nenahrávat** se smaže už během nahrávání a nikdy neopustí tvůj Mac; hovory s čísly ze soukromého seznamu se nenahrávají vůbec.
+Během přepisu je vedle nahrávky ještě každá strana uložená zvlášť jako malý soubor; jakmile je přepis hotový, smaže se. Smazáním hovoru v aplikaci se smaže i jeho zvuk. Hovor označený jako **Soukromý – nenahrávat** se smaže už během nahrávání a nikdy neopustí tvůj Mac; hovory s čísly ze soukromého seznamu se nenahrávají vůbec. Aby BrumlikAI rozlišil Meet od WhatsAppu, čte na tvém Macu názvy oken Chromu; u hovoru si uloží jen název nebo kód schůzky a názvy oken nikam neposílá.
 
 **Co se posílá přes internet**
 
@@ -342,6 +355,7 @@ Upozornění uvádí, jaké vstupní zařízení se použilo. Nejčastější p�
 - Hovor přijmi **na Macu**; hovor přijatý jen na iPhonu přes Mac nejde.
 - Zkontroluj *Nastavení → Rozpoznávat hovory automaticky* a že máš dokončeného úvodního průvodce a potvrzené informování volajících.
 - Během hovoru otevři *Nastavení → Diagnostika → Aplikace, které právě používají zvuk*: aplikace, která hovor obsluhuje, by měla mít štítek **hovor** a používat mikrofon. Pokud žádná nemá, spusť nahrávání ručně.
+- **Google Meet nebo WhatsApp:** Chrome nebo WhatsApp by měl mít štítek **Meet / WhatsApp** a používat mikrofon i reproduktor. Zkontroluj, že je zapnuté *Nastavení → Nahrávat hovory z Google Meet a WhatsAppu* a u Chromu i povolené *Nahrávání obrazovky* — bez něj BrumlikAI název okna nepřečte.
 </details>
 
 <details>
@@ -399,9 +413,9 @@ BrumlikAI běží přímo ze stažených souborů (macOS ji pak spouští z doč
 </details>
 
 <details>
-<summary><b>Funguje to s WhatsAppem, Teams nebo Zoomem?</b></summary>
+<summary><b>Funguje to s Google Meet, WhatsAppem, Teams nebo Zoomem?</b></summary>
 
-Ano, přes ruční nahrávání. Automatické rozpoznání je pro telefonní hovory a FaceTime.
+Google Meet a WhatsApp ano, automaticky: v Chromu i v aplikaci WhatsApp pro Mac (viz [Google Meet a WhatsApp](#google-meet-a-whatsapp)). Teams, Zoom a cokoli dalšího přes ruční nahrávání.
 </details>
 
 <details>
@@ -422,7 +436,7 @@ V `~/Library/Application Support/BrumlikAI/` — viz [Soukromí a data](#soukrom
 
 - **Otestovat nahrávání (5 s)** — pusť video a řekni pár slov; uvidíš, jestli se nahrává zvuk druhé strany i tvůj mikrofon, včetně hlasitosti.
 - **Vstup mikrofonu** — zařízení, ze kterého BrumlikAI nahrává tvůj hlas.
-- **Aplikace, které právě používají zvuk** — které aplikace používají mikrofon nebo přehrávají zvuk a které BrumlikAI považuje za hovor.
+- **Aplikace, které právě používají zvuk** — které aplikace používají mikrofon nebo přehrávají zvuk, které BrumlikAI považuje za hovor (**hovor**) a kde běží hovory v Meetu a WhatsAppu (**Meet / WhatsApp**).
 
 **Z Terminálu:** samotest, který nahrává, volitelně nahrávku zpracuje a zapíše výsledek do JSONu:
 
@@ -508,16 +522,17 @@ BrumlikAI/
 │   │   ├── AppState.swift          Nahrávky, klienti, telefonní seznam, nastavení
 │   │   ├── Models.swift            Recording, Client, CallSummary, MeetingProposal, TaskProposal…
 │   │   ├── Transcript.swift        Kdo co řekl: hlasitost, ozvěna, spojení obou stran
-│   │   ├── CallBriefing.swift      Připomenutí minulého hovoru se stejným volajícím
+│   │   ├── CallBriefing.swift      Připomenutí minulého hovoru se stejným volajícím nebo schůzky v Meetu
+│   │   ├── OnlineCall.swift        Hovory v Google Meet a WhatsAppu, rozlišené podle názvů oken Chromu
 │   │   ├── Email.swift             Koncepty e-mailů, nastavení SMTP, adresy
 │   │   ├── Localization.swift      Anglické a české texty
 │   │   ├── SetupChecklist.swift    Živý stav oprávnění pro průvodce nastavením
 │   │   ├── RecordingStore.swift    Soubory na disku
 │   │   ├── ClientStore.swift, PhonebookStore.swift, Keychain.swift
 │   ├── Services/
-│   │   ├── CallDetector.swift      Spouští a zastavuje nahrávání podle hovoru
+│   │   ├── CallDetector.swift      Spouští a zastavuje nahrávání podle hovoru (telefon, FaceTime, Meet, WhatsApp)
 │   │   ├── CoreAudioProcesses.swift Které procesy používají mikrofon a reproduktory
-│   │   ├── CallerDetector.swift    Jméno nebo číslo volajícího z okna hovoru
+│   │   ├── CallerDetector.swift    Jméno nebo číslo volajícího z okna hovoru; názvy oken jiných aplikací
 │   │   ├── AudioRecorder.swift     Nahrává obě strany hovoru
 │   │   ├── SystemAudioTap.swift    Core Audio process tap (druhá strana)
 │   │   ├── MicRecorder.swift       Mikrofon (ty)
@@ -536,7 +551,7 @@ BrumlikAI/
 │   └── UI/                         SwiftUI obrazovky: menu, panel hovoru (CallOverlay), detail hovoru s přehrávačem
 │                                   (CallPlayback) a e-mailem (FollowUpEmailCard), klienti, nastavení, průvodci
 └── Tests/BrumlikAITests/           Unit testy: soukromé hovory s falešným nahrávačem, kdo co řekl na generovaném
-                                    zvuku, připomenutí minulého hovoru, SMTP proti naskriptovanému serveru
+                                    zvuku, připomenutí minulého hovoru, SMTP proti naskriptovanému serveru, rozpoznání Meetu a WhatsAppu
 ```
 
 ## Nápady do budoucna

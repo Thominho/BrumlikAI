@@ -158,6 +158,26 @@ struct SettingsView: View {
                         Text(loc.t(.settingsBriefingHint)).font(.caption).foregroundColor(.secondary)
                     }
                 }
+                Toggle(isOn: $appState.recordOnlineCalls) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(loc.t(.settingsOnlineCalls))
+                        Text(loc.t(.settingsOnlineCallsHint)).font(.caption).foregroundColor(.secondary)
+                    }
+                }
+                .disabled(!appState.autoDetectEnabled)
+                if appState.autoDetectEnabled, appState.recordOnlineCalls, !CGPreflightScreenCaptureAccess() {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Label(loc.t(.settingsOnlineCallsNoTitles), systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 4)
+                        Button(loc.t(.guideAllow)) {
+                            Task { await SetupChecklist.shared.perform(.screenRecording) }
+                        }
+                        .controlSize(.small)
+                    }
+                }
                 Toggle(loc.t(.settingsConsent), isOn: $appState.consentAcknowledged)
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle(loc.t(.settingsLaunchAtLogin), isOn: $launchAtLogin)
@@ -454,8 +474,8 @@ private struct DiagnosticsSection: View {
                 ForEach(processes) { process in
                     HStack(spacing: 8) {
                         Text(process.displayName).font(.callout)
-                        if process.isCallProcess {
-                            Text(loc.t(.settingsCallTag))
+                        if process.isCallProcess || process.isOnlineCallApp {
+                            Text(loc.t(process.isCallProcess ? .settingsCallTag : .settingsOnlineTag))
                                 .font(.caption2.weight(.semibold))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 6)

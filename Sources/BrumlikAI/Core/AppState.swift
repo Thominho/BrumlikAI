@@ -32,6 +32,10 @@ final class AppState: ObservableObject {
     @Published var showCallBriefing: Bool = AppState.storedBool("showCallBriefing", default: true) {
         didSet { UserDefaults.standard.set(showCallBriefing, forKey: "showCallBriefing") }
     }
+    /// Google Meet and WhatsApp calls (in Chrome or the WhatsApp app) are detected and recorded like phone calls.
+    @Published var recordOnlineCalls: Bool = AppState.storedBool("recordOnlineCalls", default: true) {
+        didSet { UserDefaults.standard.set(recordOnlineCalls, forKey: "recordOnlineCalls") }
+    }
     @Published var emailTransport: EmailTransport = EmailTransport(rawValue: UserDefaults.standard.string(forKey: "emailTransport") ?? "") ?? .mail {
         didSet { UserDefaults.standard.set(emailTransport.rawValue, forKey: "emailTransport") }
     }

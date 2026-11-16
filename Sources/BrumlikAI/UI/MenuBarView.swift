@@ -109,6 +109,8 @@ struct MenuBarView: View {
         return appState.recordings.filter { rec in
             if rec.contactName?.lowercased().contains(q) == true { return true }
             if rec.phoneNumber?.lowercased().contains(q) == true { return true }
+            if let online = rec.onlineCall,
+               online.detail.lowercased().contains(q) || online.title?.lowercased().contains(q) == true { return true }
             if rec.transcript?.lowercased().contains(q) == true { return true }
             if let s = rec.summary {
                 if s.humanSummary.lowercased().contains(q) { return true }
@@ -307,6 +309,7 @@ struct RecordingListRow: View {
         if let name = recording.contactName, !name.isEmpty { return name }
         if let client = appState.client(for: recording) { return client.name }
         if let phone = recording.phoneNumber, !phone.isEmpty { return phone }
+        if let online = recording.onlineCall { return online.displayTitle }
         if let brief = recording.summary?.humanSummary {
             return brief.components(separatedBy: ".").first.map { String($0) } ?? recording.displayTitle
         }
@@ -315,6 +318,7 @@ struct RecordingListRow: View {
 
     private var iconName: String {
         if recording.status == .recording { return "waveform" }
+        if let online = recording.onlineCall { return online.service == .meet ? "video.circle.fill" : "message.circle.fill" }
         if recording.clientId != nil { return "person.crop.circle.fill" }
         return "phone.circle.fill"
     }

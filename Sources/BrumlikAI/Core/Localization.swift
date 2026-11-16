@@ -102,7 +102,7 @@ enum LocKey: String {
 
     case settingsCallLanguage, settingsCallLanguageAuto, settingsCallLanguageHint, settingsShowAIPrompt, settingsShowAIPromptHint, settingsOpenGuide
     case settingsDiagnostics, settingsTestRecording, settingsTestHint, settingsTestRunning, settingsTestCaller, settingsTestMic, settingsTestOK, settingsTestSilent, settingsTestNotRecorded
-    case settingsProcesses, settingsProcessesHint, settingsRefresh, settingsCallTag
+    case settingsProcesses, settingsProcessesHint, settingsRefresh, settingsCallTag, settingsOnlineTag
 
     case assetWeb, assetApp, assetCRM, assetServer, assetOther
 
@@ -125,15 +125,15 @@ enum LocKey: String {
     case settingsInputDevice
 
     case hudRecordingTitle, hudKeepHint, hudPrivateHint, hudPrivateButton, hudPrivateShort, hudMinimize
-    case hudDiscardedTitle, hudDiscardedBody, hudDiscardedTip, hudRememberNumber, hudRememberContact, hudRememberButton, hudOnlyThisTime
+    case hudDiscardedTitle, hudDiscardedBody, hudDiscardedTip, hudDiscardedOnlineTip, hudRememberNumber, hudRememberContact, hudRememberButton, hudOnlyThisTime
     case hudRememberedTitle, hudRememberedBody, hudSkippedTitle, hudSkippedBody, hudRecordAnyway
     case settingsPrivateTitle, settingsPrivateBody, settingsPrivateNumber, settingsPrivateName, settingsPrivateAdd, settingsPrivateEmpty, settingsPrivateNameHint, settingsPrivateRemove, settingsPrivateByName
     case contactDoNotRecord, contactDoNotRecordByName, contactDoNotRecordHint
     case detailDeleteCall, detailDeleteConfirmTitle, detailDeleteConfirmBody
-    case transcriptMe, transcriptOther, detailRecordingTitle, detailTranscriptHint
+    case transcriptMe, transcriptOther, transcriptOthers, detailRecordingTitle, detailTranscriptHint
     case playerPlay, playerPause, playerBack, playerForward, playerSpeed, playerUnavailable
     case briefingTitle, briefingToday, briefingYesterday, briefingTasks, briefingMeeting, briefingOpen, briefingShort
-    case settingsBriefing, settingsBriefingHint
+    case settingsBriefing, settingsBriefingHint, settingsOnlineCalls, settingsOnlineCallsHint, settingsOnlineCallsNoTitles
     case emailCardTitle, emailCardHint, emailWrite, emailWriting, emailTo, emailSubject, emailRewrite, emailOpenInMail, emailOpenedInMail
     case emailSend, emailSending, emailSentAt, emailConfirmTitle, emailConfirmBody, emailSMTPMissing, emailMailFailed, emailNoRecipient
     case emailSettingsTitle, emailSendVia, emailViaMail, emailViaSMTP, emailViaMailHint, emailViaSMTPHint
@@ -161,7 +161,7 @@ enum Strings {
 
         .onboardingWelcomeTitle: "Welcome to BrumlikAI",
         .onboardingWelcomeSubtitle: "AI summaries of your phone calls.",
-        .onboardingWelcomeBody: "BrumlikAI waits in your menu bar. When you answer a phone call on your Mac (via iPhone Continuity), it records it, transcribes it with DeepInfra, summarises the client's web / app requests, and if you agreed on a meeting, adds it to your Apple Calendar.",
+        .onboardingWelcomeBody: "BrumlikAI waits in your menu bar. When you answer a phone call on your Mac (via iPhone Continuity) or join a Google Meet or WhatsApp call, it records it, transcribes it with DeepInfra, summarises the client's web / app requests, and if you agreed on a meeting, adds it to your Apple Calendar.",
         .onboardingContinue: "Continue",
 
         .onboardingConsentTitle: "Legal consent",
@@ -237,9 +237,10 @@ enum Strings {
         .settingsTestSilent: "silent",
         .settingsTestNotRecorded: "not recorded",
         .settingsProcesses: "Apps using audio right now",
-        .settingsProcessesHint: "During a call, the app handling it should be tagged “call” and use the microphone. If none is, automatic detection won't work — start recording manually.",
+        .settingsProcessesHint: "During a call, the app handling it should be tagged “call” and use the microphone. In a Meet or WhatsApp call, Chrome or WhatsApp (tagged “Meet / WhatsApp”) should use both the microphone and the speaker. If none does, automatic detection won't work — start recording manually.",
         .settingsRefresh: "Refresh",
         .settingsCallTag: "call",
+        .settingsOnlineTag: "Meet / WhatsApp",
 
         .assetWeb: "Website",
         .assetApp: "App",
@@ -295,7 +296,7 @@ enum Strings {
         .guideContactsWhy: "Shows the caller's name from your contacts and helps recognise private calls.",
         .guideContactsSteps: "Click Allow and confirm. If nothing happens, turn on BrumlikAI in System Settings → Privacy & Security → Contacts.",
         .guideScreenTitle: "Screen recording",
-        .guideScreenWhy: "Lets BrumlikAI read the caller's name or number from the call window — that's also how it recognises private calls before recording. Without it you'll type the name yourself.",
+        .guideScreenWhy: "Lets BrumlikAI read the caller's name or number from the call window — that's also how it recognises private calls before recording — and tell a Google Meet or WhatsApp call in Chrome by the window's title. Without it you'll type the name yourself and calls in Chrome aren't recorded on their own.",
         .guideScreenSteps: "1. Click Allow — macOS shows a dialog that opens System Settings.\n2. Under Screen & System Audio Recording, turn on BrumlikAI.\n3. macOS may ask you to quit and reopen BrumlikAI.",
         .updatesTitle: "Updates",
         .updatesCurrentVersion: "Version %@",
@@ -445,6 +446,7 @@ enum Strings {
         .hudDiscardedTitle: "Not recorded",
         .hudDiscardedBody: "The recording is deleted. Nothing was saved or sent.",
         .hudDiscardedTip: "Numbers you never want recorded can be added in Settings → Private calls.",
+        .hudDiscardedOnlineTip: "To stop recording Meet and WhatsApp calls altogether, turn it off in Settings.",
         .hudRememberNumber: "Never record this number?",
         .hudRememberContact: "Never record this contact?",
         .hudRememberButton: "Never record",
@@ -475,6 +477,7 @@ enum Strings {
 
         .transcriptMe: "You",
         .transcriptOther: "Client",
+        .transcriptOthers: "Others",
         .detailRecordingTitle: "Recording and transcript",
         .detailTranscriptHint: "Click a sentence to play the call from there.",
         .playerPlay: "Play",
@@ -493,6 +496,9 @@ enum Strings {
         .briefingShort: "Last call",
         .settingsBriefing: "Recall the last call when someone calls",
         .settingsBriefingHint: "When someone you've spoken to before calls, the call panel shows what your last call was about and what you were going to do.",
+        .settingsOnlineCalls: "Record Google Meet and WhatsApp calls",
+        .settingsOnlineCallsHint: "In Chrome and in the WhatsApp app. A call starts when the app uses the microphone and plays sound at the same time. BrumlikAI tells Meet from WhatsApp in Chrome by the window title, which needs the Screen recording permission.",
+        .settingsOnlineCallsNoTitles: "BrumlikAI can't see Chrome's window titles, so it won't recognise Meet or WhatsApp in Chrome. Allow Screen recording.",
 
         .emailCardTitle: "Email to the client",
         .emailCardHint: "A short email with what you agreed and the next steps — check it, then send it.",
@@ -566,7 +572,7 @@ enum Strings {
 
         .onboardingWelcomeTitle: "Vítej v BrumlikAI",
         .onboardingWelcomeSubtitle: "AI shrnutí tvých telefonních hovorů.",
-        .onboardingWelcomeBody: "BrumlikAI sedí v menu baru. Jakmile přijmeš hovor na Macu (přes iPhone Continuity), nahraje ho, přepíše přes DeepInfra, shrne požadavky klienta na webu / appce a pokud dojde ke schůzce, přidá ji do tvého Kalendáře Apple.",
+        .onboardingWelcomeBody: "BrumlikAI sedí v menu baru. Jakmile přijmeš hovor na Macu (přes iPhone Continuity) nebo se připojíš k hovoru v Google Meet či WhatsAppu, nahraje ho, přepíše přes DeepInfra, shrne požadavky klienta na webu / appce a pokud dojde ke schůzce, přidá ji do tvého Kalendáře Apple.",
         .onboardingContinue: "Pokračovat",
 
         .onboardingConsentTitle: "Právní souhlas",
@@ -642,9 +648,10 @@ enum Strings {
         .settingsTestSilent: "ticho",
         .settingsTestNotRecorded: "nenahráno",
         .settingsProcesses: "Aplikace, které právě používají zvuk",
-        .settingsProcessesHint: "Během hovoru by aplikace, která ho obsluhuje, měla mít štítek „hovor“ a používat mikrofon. Pokud žádná nemá, automatická detekce nebude fungovat — spusť nahrávání ručně.",
+        .settingsProcessesHint: "Během hovoru by aplikace, která ho obsluhuje, měla mít štítek „hovor“ a používat mikrofon. U hovoru v Meetu nebo WhatsAppu by Chrome či WhatsApp (se štítkem „Meet / WhatsApp“) měl používat mikrofon i reproduktor. Pokud žádná nemá, automatická detekce nebude fungovat — spusť nahrávání ručně.",
         .settingsRefresh: "Obnovit",
         .settingsCallTag: "hovor",
+        .settingsOnlineTag: "Meet / WhatsApp",
 
         .assetWeb: "Web",
         .assetApp: "Aplikace",
@@ -700,7 +707,7 @@ enum Strings {
         .guideContactsWhy: "Zobrazí jméno volajícího podle tvých kontaktů a pomáhá poznat soukromé hovory.",
         .guideContactsSteps: "Klikni na Povolit a potvrď. Když se nic nestane, zapni BrumlikAI v Nastavení systému → Soukromí a zabezpečení → Kontakty.",
         .guideScreenTitle: "Nahrávání obrazovky",
-        .guideScreenWhy: "Umožní BrumlikAI přečíst jméno nebo číslo volajícího z okna hovoru – díky tomu taky pozná soukromý hovor ještě před nahráváním. Bez něj jméno doplníš sám.",
+        .guideScreenWhy: "Umožní BrumlikAI přečíst jméno nebo číslo volajícího z okna hovoru – díky tomu taky pozná soukromý hovor ještě před nahráváním – a podle názvu okna poznat hovor v Google Meet nebo WhatsAppu v Chromu. Bez něj jméno doplníš sám a hovory v Chromu se samy nenahrají.",
         .guideScreenSteps: "1. Klikni na Povolit — macOS ukáže dotaz, který otevře Nastavení systému.\n2. U nahrávání obrazovky a systémového zvuku zapni BrumlikAI.\n3. macOS může chtít BrumlikAI ukončit a znovu otevřít.",
         .updatesTitle: "Aktualizace",
         .updatesCurrentVersion: "Verze %@",
@@ -850,6 +857,7 @@ enum Strings {
         .hudDiscardedTitle: "Nenahráno",
         .hudDiscardedBody: "Nahrávka je smazaná. Nic se neuložilo ani neodeslalo.",
         .hudDiscardedTip: "Čísla, která nechceš nahrávat nikdy, přidáš v Nastavení → Soukromé hovory.",
+        .hudDiscardedOnlineTip: "Pokud nechceš hovory z Meetu a WhatsAppu nahrávat vůbec, vypneš to v Nastavení.",
         .hudRememberNumber: "Nenahrávat toto číslo už nikdy?",
         .hudRememberContact: "Nenahrávat tento kontakt už nikdy?",
         .hudRememberButton: "Nikdy nenahrávat",
@@ -880,6 +888,7 @@ enum Strings {
 
         .transcriptMe: "Vy",
         .transcriptOther: "Klient",
+        .transcriptOthers: "Ostatní",
         .detailRecordingTitle: "Nahrávka a přepis",
         .detailTranscriptHint: "Klikni na větu a hovor se přehraje od ní.",
         .playerPlay: "Přehrát",
@@ -898,6 +907,9 @@ enum Strings {
         .briefingShort: "Minule",
         .settingsBriefing: "Při hovoru připomenout minulý hovor",
         .settingsBriefingHint: "Když volá někdo, s kým už jsi mluvil, panel hovoru ukáže, o čem byl minulý hovor a co jsi měl udělat.",
+        .settingsOnlineCalls: "Nahrávat hovory z Google Meet a WhatsAppu",
+        .settingsOnlineCallsHint: "V Chromu i v aplikaci WhatsApp. Hovor začne, když aplikace zároveň používá mikrofon a přehrává zvuk. Meet a WhatsApp v Chromu BrumlikAI rozliší podle názvu okna – k tomu potřebuje oprávnění Nahrávání obrazovky.",
+        .settingsOnlineCallsNoTitles: "BrumlikAI nevidí názvy oken Chromu, takže Meet ani WhatsApp v Chromu nepozná. Povol Nahrávání obrazovky.",
 
         .emailCardTitle: "E-mail klientovi",
         .emailCardHint: "Krátký e-mail s tím, na čem jste se domluvili, a dalšími kroky – zkontroluj ho a odešli.",

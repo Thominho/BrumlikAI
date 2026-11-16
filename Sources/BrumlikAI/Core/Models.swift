@@ -154,6 +154,8 @@ struct Recording: Identifiable, Codable, Equatable {
     var segments: [TranscriptSegment]?
     /// The follow-up email for the client, once written.
     var emailDraft: EmailDraft?
+    /// Set when the call was a Google Meet or WhatsApp call on the Mac; phone calls and manual recordings have none.
+    var onlineCall: OnlineCall?
 
     init(
         id: UUID = UUID(),
@@ -169,7 +171,8 @@ struct Recording: Identifiable, Codable, Equatable {
         errorMessage: String? = nil,
         audioWarning: String? = nil,
         segments: [TranscriptSegment]? = nil,
-        emailDraft: EmailDraft? = nil
+        emailDraft: EmailDraft? = nil,
+        onlineCall: OnlineCall? = nil
     ) {
         self.id = id
         self.startedAt = startedAt
@@ -185,6 +188,7 @@ struct Recording: Identifiable, Codable, Equatable {
         self.audioWarning = audioWarning
         self.segments = segments
         self.emailDraft = emailDraft
+        self.onlineCall = onlineCall
     }
 
     var duration: TimeInterval {
@@ -365,7 +369,9 @@ enum FlexibleDate {
 }
 
 enum CallEvent {
-    case started(callerHint: String?)
+    /// A call was detected. `callerHint` is the text of the phone / FaceTime call window;
+    /// `online` is set for a Google Meet or WhatsApp call on the Mac.
+    case started(callerHint: String?, online: OnlineCall? = nil)
     case ended
 }
 

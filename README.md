@@ -4,7 +4,7 @@
 
 # BrumlikAI
 
-**AI notes for the phone calls you take on your Mac.**
+**AI notes for the calls you take on your Mac — phone, Google Meet and WhatsApp.**
 
 BrumlikAI records the call, transcribes it, writes down everything that was actually said,<br>
 and turns agreed meetings into calendar events and to‑dos into reminders — on its own.
@@ -69,7 +69,7 @@ The whole app is available in **English and Czech**.
 
 | | |
 |---|---|
-| **Automatic call recording** | Detects calls you take on the Mac — iPhone calls over Continuity and FaceTime — and starts recording on its own. Manual recording is one click away. |
+| **Automatic call recording** | Detects calls you take on the Mac — iPhone calls over Continuity, FaceTime, and Google Meet or WhatsApp in Chrome or the WhatsApp app — and starts recording on its own. Manual recording is one click away. |
 | **Private calls stay private** | A small panel shows up during every recorded call. Click **Private – don't record** and the recording stops and is deleted on the spot — nothing is saved or sent. Family and friends go on a never‑record list, and BrumlikAI then doesn't record their calls at all. |
 | **Both sides of the call** | Your voice from the microphone, the other party from the Mac's audio through a Core Audio process tap. Apps that were only playing music or video when the call started are left out. |
 | **Who said what** | The two sides are transcribed separately, so the transcript knows who said what — and the to‑dos are the things *you* promised, not the client. The other party's voice echoing from your speakers is filtered out. |
@@ -101,17 +101,17 @@ flowchart LR
     F --> G["Call detail<br/>playback · email<br/>Calendar · Reminders"]
 ```
 
-1. **Detection.** Every two seconds BrumlikAI asks Core Audio which processes are using the microphone. When FaceTime or the macOS call services (`avconferenced`, `callservicesd`) capture it for a few seconds, a call is on. When they stop for about six seconds, the call has ended — a short mute doesn't split the recording.
-2. **Recording.** Two tracks are recorded at once: the microphone (you) and a Core Audio process tap of the Mac's audio output (the other party). BrumlikAI itself and apps that were only playing audio when the call started are excluded from the tap.
-3. **Caller.** The number or name is read from the call window and looked up in BrumlikAI's phonebook first, then in Contacts.
+1. **Detection.** Every two seconds BrumlikAI asks Core Audio which processes are using the microphone. When FaceTime or the macOS call services (`avconferenced`, `callservicesd`) capture it for a few seconds, a call is on. When they stop for about six seconds, the call has ended — a short mute doesn't split the recording. A Google Meet or WhatsApp call is on when Chrome or the WhatsApp app captures the microphone *and* plays sound; in Chrome, the window title tells Meet from WhatsApp.
+2. **Recording.** Two tracks are recorded at once: the microphone (you) and a Core Audio process tap of the Mac's audio output (the other party). BrumlikAI itself and apps that were only playing audio when the call started are excluded from the tap — never the app a Meet or WhatsApp call runs in.
+3. **Caller.** The number or name is read from the call window and looked up in BrumlikAI's phonebook first, then in Contacts. For Google Meet, the meeting's name or code comes from the window title.
 4. **Processing.** The tracks are mixed into one M4A file for playback, and each side is also saved on its own as a small speech file. Whisper transcribes the two sides separately (long calls in parts). BrumlikAI keeps only what was audible on each side — Whisper tends to invent text over silence — drops the other party's voice that your microphone picked up from the speakers, and merges both sides by time into a transcript that knows who said what. Llama 3.3 70B then returns a structured summary: a one‑line headline, the summary, the requests, your to‑dos, an agreed meeting and — if you turned it on — an AI prompt. The separate side files are deleted once the transcript is done.
 5. **Result.** You get a notification and the call appears in the menu‑bar history.
-6. **Next call.** When the same number, client or contact calls again, the call panel recalls the headline, to‑dos and upcoming meeting of your last call with them.
+6. **Next call.** When the same number, client or contact calls again — or the next meeting of a recurring Google Meet starts — the call panel recalls the headline, to‑dos and upcoming meeting of your last call with them.
 
 ## Requirements
 
 - **macOS 14.2 (Sonoma) or newer** — Apple silicon or Intel.
-- **Calls on the Mac:** an iPhone with *Calls on Other Devices* turned on (same Apple Account, Wi‑Fi and Bluetooth on), or FaceTime audio calls.
+- **Calls on the Mac:** an iPhone with *Calls on Other Devices* turned on (same Apple Account, Wi‑Fi and Bluetooth on), FaceTime audio calls, or Google Meet and WhatsApp calls in Chrome or the WhatsApp app.
 - **A microphone.** Mac mini, Mac Studio and Mac Pro have none built in — use a headset.
 - **A DeepInfra account** and API token. DeepInfra is pay‑as‑you‑go; see [deepinfra.com/pricing](https://deepinfra.com/pricing).
 
@@ -167,7 +167,7 @@ The setup guide (onboarding, *Settings → Permissions & setup guide*, or the ba
 | **Reminders** | Recommended | Saving to‑dos | System Settings → Privacy & Security → Reminders |
 | **Notifications** | Recommended | "Recording started", "Summary ready" | System Settings → Notifications |
 | **Contacts** | Optional | Caller names; recognising private calls | System Settings → Privacy & Security → Contacts |
-| **Screen recording** | Optional | Reading the caller's name from the call window — also how private calls are recognised before recording | System Settings → Privacy & Security → Screen & System Audio Recording |
+| **Screen recording** | Optional | Reading the caller's name from the call window — also how private calls are recognised before recording, and how Google Meet and WhatsApp are told apart in Chrome | System Settings → Privacy & Security → Screen & System Audio Recording |
 
 > [!NOTE]
 > macOS doesn't tell apps whether they may record system audio. The guide's **Test** button therefore plays a short sound and checks that BrumlikAI hears it.
@@ -177,10 +177,22 @@ The setup guide (onboarding, *Settings → Permissions & setup guide*, or the ba
 ### Recording calls
 
 - **Automatically:** answer the call on your Mac (the notification in the corner of the screen). The menu‑bar icon turns into a red record button; when you hang up, BrumlikAI stops and starts processing. Automatic recording only works after the onboarding is finished and you have confirmed that you tell callers about it.
-- **Manually:** click the menu‑bar icon → **Start recording**. Manual recordings capture everything the Mac plays (except BrumlikAI) plus your microphone — handy for WhatsApp, Teams or Zoom calls, or a phone on speaker.
+- **Google Meet and WhatsApp:** join the meeting or take the call in Chrome or the WhatsApp app — BrumlikAI starts and stops on its own, see [below](#google-meet-and-whatsapp).
+- **Manually:** click the menu‑bar icon → **Start recording**. Manual recordings capture everything the Mac plays (except BrumlikAI) plus your microphone — handy for Teams or Zoom calls, or a phone on speaker.
 
 > [!IMPORTANT]
 > Recording calls is subject to data protection law (GDPR in the EU) and often requires the other party's consent. Tell them at the start of every call that it's being recorded, and check the rules that apply to you.
+
+### Google Meet and WhatsApp
+
+BrumlikAI records Google Meet and WhatsApp calls like phone calls — in **Chrome**, and in the **WhatsApp app** for Mac.
+
+- **When it starts:** once Chrome or WhatsApp uses the microphone *and* plays sound for a few seconds. The Meet waiting room (microphone only) or recording a WhatsApp voice message doesn't count. The call ends when the app lets go of the microphone — muting yourself in Meet doesn't end it.
+- **Meet or WhatsApp in Chrome** is told apart by the window title (*Meet - abc-defg-hij*, *WhatsApp*), which needs the *Screen recording* permission. Without it, BrumlikAI doesn't record calls in Chrome on its own, and *Settings* shows a warning with an **Allow** button.
+- **The call panel** works the same: **Private – don't record** deletes the recording on the spot. A meeting has no number for the private list — to stop recording Meet and WhatsApp altogether, turn off *Settings → Record Google Meet and WhatsApp calls*.
+- **Recurring meetings:** every meeting of a recurring Google Calendar event has the same Meet code, so the panel recalls the last one, and the client you assigned to it is assigned to the next one too.
+- **More people:** in a meeting, everyone except you is the other side of the call — the transcript calls them *Others*.
+- Other calls in the browser, such as Teams or Zoom, aren't detected — record them manually.
 
 ### Private calls
 
@@ -273,6 +285,7 @@ In the call detail, **Write email** turns the call into a short follow‑up for 
 | **Default calendar / Reminders list** | Where meetings and to‑dos are saved. |
 | **Detect calls automatically** | On by default. |
 | **Recall the last call when someone calls** | On by default. The call panel shows what your last call with that person was about. |
+| **Record Google Meet and WhatsApp calls** | On by default. Calls in Chrome and in the WhatsApp app; telling Meet from WhatsApp in Chrome needs *Screen recording*. |
 | **I inform callers that calls are recorded** | Required for automatic recording. |
 | **Start BrumlikAI at login** | Adds BrumlikAI to your login items. |
 | **Private calls** | Numbers (or contact names) whose calls are never recorded. |
@@ -303,7 +316,7 @@ In the call detail, **Write email** turns the call into a short follow‑up for 
 | DeepInfra token, SMTP password | macOS Keychain |
 | Settings | macOS user defaults (`cz.brumlik.BrumlikAI`) |
 
-While a call is being transcribed, each side is also kept as a small separate file next to the recording; it's deleted as soon as the transcript is done. Deleting a call in the app deletes its audio too. A call marked **Private – don't record** is deleted while it's being recorded and never leaves your Mac; calls from numbers on the private list aren't recorded at all.
+While a call is being transcribed, each side is also kept as a small separate file next to the recording; it's deleted as soon as the transcript is done. Deleting a call in the app deletes its audio too. A call marked **Private – don't record** is deleted while it's being recorded and never leaves your Mac; calls from numbers on the private list aren't recorded at all. To tell Meet from WhatsApp, BrumlikAI reads the titles of Chrome's windows on your Mac; it keeps only the meeting's name or code with the call, and window titles are never sent anywhere.
 
 **Sent over the internet**
 
@@ -342,6 +355,7 @@ The warning names the input device that was used. Typical causes:
 - Answer the call **on the Mac**; calls answered only on the iPhone don't go through the Mac.
 - Check *Settings → Detect calls automatically* and that you finished the onboarding and confirmed you tell callers about the recording.
 - During a call, open *Settings → Diagnostics → Apps using audio right now*: the app handling the call should be tagged **call** and use the microphone. If none is, start recording manually.
+- **Google Meet or WhatsApp:** Chrome or WhatsApp should be tagged **Meet / WhatsApp** and use both the microphone and the speaker. Check that *Settings → Record Google Meet and WhatsApp calls* is on and, for Chrome, that *Screen recording* is allowed — without it BrumlikAI can't read the window title.
 </details>
 
 <details>
@@ -399,9 +413,9 @@ BrumlikAI was started straight from the download (macOS runs it from a temporary
 </details>
 
 <details>
-<summary><b>Does it work with WhatsApp, Teams or Zoom?</b></summary>
+<summary><b>Does it work with Google Meet, WhatsApp, Teams or Zoom?</b></summary>
 
-Yes, with manual recording. Automatic detection is for phone and FaceTime calls.
+Google Meet and WhatsApp — yes, automatically: in Chrome and in the WhatsApp app for Mac (see [Google Meet and WhatsApp](#google-meet-and-whatsapp)). Teams, Zoom and everything else — with manual recording.
 </details>
 
 <details>
@@ -422,7 +436,7 @@ In `~/Library/Application Support/BrumlikAI/` — see [Privacy & data](#privacy-
 
 - **Test recording (5 s)** — play a video and say a few words; you'll see whether the other party's audio and your microphone are picked up, with their levels.
 - **Microphone input** — the device BrumlikAI records your voice from.
-- **Apps using audio right now** — which apps use the microphone 🎙 or play sound, and which ones BrumlikAI treats as calls.
+- **Apps using audio right now** — which apps use the microphone 🎙 or play sound, which ones BrumlikAI treats as calls (**call**) and where Meet and WhatsApp calls run (**Meet / WhatsApp**).
 
 **From Terminal:** a self‑test that records, optionally processes the recording and writes a JSON report:
 
@@ -508,16 +522,17 @@ BrumlikAI/
 │   │   ├── AppState.swift          Recordings, clients, phonebook, settings
 │   │   ├── Models.swift            Recording, Client, CallSummary, MeetingProposal, TaskProposal…
 │   │   ├── Transcript.swift        Who said what: loudness, echo, merging both sides
-│   │   ├── CallBriefing.swift      Recap of the last call with the same caller
+│   │   ├── CallBriefing.swift      Recap of the last call with the same caller or Meet meeting
+│   │   ├── OnlineCall.swift        Google Meet and WhatsApp calls, told apart by Chrome's window titles
 │   │   ├── Email.swift             Email drafts, SMTP settings, addresses
 │   │   ├── Localization.swift      English & Czech texts
 │   │   ├── SetupChecklist.swift    Live permission status for the setup guide
 │   │   ├── RecordingStore.swift    Files on disk
 │   │   ├── ClientStore.swift, PhonebookStore.swift, Keychain.swift
 │   ├── Services/
-│   │   ├── CallDetector.swift      Starts/stops recording when a call starts/ends
+│   │   ├── CallDetector.swift      Starts/stops recording when a call starts/ends (phone, FaceTime, Meet, WhatsApp)
 │   │   ├── CoreAudioProcesses.swift Which processes use the microphone / speakers
-│   │   ├── CallerDetector.swift    Caller name or number from the call window
+│   │   ├── CallerDetector.swift    Caller name or number from the call window; other apps' window titles
 │   │   ├── AudioRecorder.swift     Records both sides of the call
 │   │   ├── SystemAudioTap.swift    Core Audio process tap (the other party)
 │   │   ├── MicRecorder.swift       Microphone (you)
@@ -536,7 +551,7 @@ BrumlikAI/
 │   └── UI/                         SwiftUI views: menu, call panel (CallOverlay), call detail with player
 │                                   (CallPlayback) and email (FollowUpEmailCard), clients, settings, setup guide, onboarding
 └── Tests/BrumlikAITests/           Unit tests: private calls with a fake recorder, who said what on generated
-                                    audio, the last-call recap, SMTP against a scripted server
+                                    audio, the last-call recap, SMTP against a scripted server, Meet and WhatsApp detection
 ```
 
 ## Ideas for the future

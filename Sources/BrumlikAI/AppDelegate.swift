@@ -48,7 +48,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        callDetector = CallDetector { [weak self] event in
+        callDetector = CallDetector(detectsOnlineCalls: { [weak self] in
+            self?.appState.recordOnlineCalls ?? false
+        }) { [weak self] event in
             self?.recordingCoordinator.handleCallEvent(event)
         }
         callOverlay = CallOverlayController(coordinator: recordingCoordinator, loc: loc) { [weak self] id in

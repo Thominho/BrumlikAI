@@ -35,6 +35,23 @@ enum CallHistory {
             .max { $0.startedAt < $1.startedAt }
     }
 
+    /// The latest summarised meeting with the same Google Meet code — every meeting of a recurring event has it.
+    static func previousMeeting(in recordings: [Recording], code: String?, excluding excluded: UUID? = nil) -> Recording? {
+        guard let code = code.nonEmpty?.lowercased() else { return nil }
+        return recordings
+            .filter { $0.id != excluded && $0.summary != nil && $0.onlineCall?.meetingCode == code }
+            .max { $0.startedAt < $1.startedAt }
+    }
+
+    /// The client of the latest meeting with this Google Meet code, so the next meeting starts with it.
+    static func client(forMeetingCode code: String?, in recordings: [Recording]) -> UUID? {
+        guard let code = code.nonEmpty?.lowercased() else { return nil }
+        return recordings
+            .filter { $0.clientId != nil && $0.onlineCall?.meetingCode == code }
+            .max { $0.startedAt < $1.startedAt }?
+            .clientId
+    }
+
     static func briefing(from recording: Recording, now: Date = Date()) -> CallBriefing? {
         guard let summary = recording.summary else { return nil }
         let headline = summary.headline.nonEmpty ?? firstSentence(of: summary.humanSummary)

@@ -32,19 +32,36 @@ final class DeepInfraClient: SpeechTranscribing {
         _ = try await send(request)
     }
 
+    /// How the summary prompt starts: what kind of call it was and who is speaking.
+    static func callDescription(_ call: OnlineCall?, hasSpeakers: Bool) -> String {
+        let kind: String
+        var others = "CLIENT (the other party)"
+        switch call?.service {
+        case .meet:
+            kind = "a recorded Google Meet video call between the app's user and the other people in the meeting — a client, possibly several people"
+            others = "CLIENT (everyone else in the meeting; it may be several people)"
+        case .whatsapp:
+            kind = "a recorded WhatsApp call between the app's user and a client"
+        case nil:
+            kind = "a recorded phone call between the app's user and a client"
+        }
+        let speakers = hasSpeakers
+            ? "Every line of the transcript starts with who is speaking: USER (the app's user) or \(others)."
+            : "The transcript has no speaker labels — work out from the context who is speaking."
+        return "\(kind). \(speakers)"
+    }
+
     func summarize(
         transcript: String,
         hasSpeakers: Bool,
+        call: OnlineCall? = nil,
         clientContext: String?,
         userRole: String?,
         language: AppLanguage,
         now: Date
     ) async throws -> CallSummary {
-        let speakers = hasSpeakers
-            ? "Every line of the transcript starts with who is speaking: USER (the app's user) or CLIENT (the other party)."
-            : "The transcript has no speaker labels — work out from the context who is speaking."
         let system = """
-        You summarise a recorded phone call between the app's user and a client. \(speakers)
+        You summarise \(Self.callDescription(call, hasSpeakers: hasSpeakers))
 
         STRICT RULES
         1. Never invent anything. If something wasn't said in the call, leave it out. An empty field is better than a guess.

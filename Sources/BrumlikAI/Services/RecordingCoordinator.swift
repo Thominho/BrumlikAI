@@ -19,12 +19,18 @@ enum ProcessingError: LocalizedError {
 struct CallerLabel: Equatable {
     var name: String?
     var number: String?
+    /// A Google Meet or WhatsApp call, which has no number: the panel shows the service and the meeting.
+    var online: OnlineCall?
 
     init(name: String? = nil, number: String? = nil) {
         let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let trimmedNumber = number?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         self.name = trimmedName.isEmpty ? nil : trimmedName
         self.number = PhonebookEntry.normalize(trimmedNumber).isEmpty ? nil : trimmedNumber
+    }
+
+    init(online: OnlineCall) {
+        self.online = online
     }
 
     /// The raw text from the call window: either a number or a name.
@@ -37,10 +43,15 @@ struct CallerLabel: Equatable {
         }
     }
 
-    var isEmpty: Bool { name == nil && number == nil }
-    var title: String? { name ?? number }
-    /// The number shown under the name, when both are known.
-    var subtitle: String? { name == nil ? nil : number }
+    var isEmpty: Bool { name == nil && number == nil && online == nil }
+    /// A number or a contact's name — what the private list can hold. Meet and WhatsApp calls have neither.
+    var canBePrivate: Bool { online == nil && (name != nil || number != nil) }
+    var title: String? { name ?? number ?? online?.displayTitle }
+    /// The number shown under the name when both are known; for Meet the service or the meeting code.
+    var subtitle: String? {
+        if name == nil, number == nil, let online { return online.displaySubtitle }
+        return name == nil ? nil : number
+    }
 }
 
 /// What the floating call panel shows.
@@ -134,12 +145,20 @@ final class RecordingCoordinator: ObservableObject {
         callSerial += 1
         let serial = callSerial
         switch event {
-        case .started(let hint):
+        case .started(let hint, let online):
             currentCallHint = hint
-            currentCaller = CallerLabel(hint: hint)
+            currentCaller = online.map { CallerLabel(online: $0) } ?? CallerLabel(hint: hint)
             // Never record on its own before onboarding is done and the user agreed to tell callers.
             guard !isRecording, appState.consentAcknowledged,
                   UserDefaults.standard.bool(forKey: "onboardingCompleted") else { return }
+            if let online {
+                // A Meet or WhatsApp call has no number for the private list; "Private – don't record" still works.
+                Task {
+                    guard serial == callSerial else { return }
+                    await startRecording(callerHint: nil, auto: true, online: online)
+                }
+                return
+            }
             Task {
                 // Who is calling is looked up once: for the private list and for the recording.
                 let caller = await resolveCaller(hint: hint)
@@ -171,13 +190,14 @@ final class RecordingCoordinator: ObservableObject {
     typealias ResolvedCaller = (number: String?, name: String?, clientId: UUID?)
 
     /// `resolved` skips the caller lookup when the call handler has done it already.
-    func startRecording(callerHint: String?, auto: Bool, resolved: ResolvedCaller? = nil) async {
+    /// `online` is the Google Meet or WhatsApp call being recorded.
+    func startRecording(callerHint: String?, auto: Bool, resolved: ResolvedCaller? = nil, online: OnlineCall? = nil) async {
         guard !isRecording else { return }
         await recorder.requestAccessIfNeeded()
         guard !isRecording else { return }
         let id = UUID()
         do {
-            try recorder.start(recordingId: id, mode: auto ? .callFocused : .allExceptSelf)
+            try recorder.start(recordingId: id, mode: auto ? .callFocused(keeping: online?.appBundlePrefix) : .allExceptSelf)
         } catch {
             appState.lastError = error.localizedDescription
             notify(error.localizedDescription)
@@ -189,12 +209,28 @@ final class RecordingCoordinator: ObservableObject {
         activeRecordingId = id
         let start = Date()
         startedAt = start
-        appState.appendRecording(Recording(id: id, startedAt: start, audioURL: RecordingStore.mixedURL(for: id), status: .recording))
+        var recording = Recording(id: id, startedAt: start, audioURL: RecordingStore.mixedURL(for: id), status: .recording)
+        if let online {
+            recording.onlineCall = online
+            // The next meeting of a recurring event starts with the client the user gave the last one.
+            recording.clientId = CallHistory.client(forMeetingCode: online.meetingCode, in: appState.recordings)
+        }
+        appState.appendRecording(recording)
         durationTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, let startedAt = self.startedAt else { return }
                 self.currentDuration = Date().timeIntervalSince(startedAt)
             }
+        }
+        if let online {
+            if auto {
+                currentCaller = CallerLabel(online: online)
+                currentBriefing = meetingBriefing(for: online, excluding: id)
+                showOverlay(.recording(currentCaller, briefing: currentBriefing))
+            } else {
+                notify(L10n.t(.notifRecordingStarted))
+            }
+            return
         }
         if auto {
             if let resolved {
@@ -239,6 +275,13 @@ final class RecordingCoordinator: ObservableObject {
             excluding: id
         )
         return previous.flatMap { CallHistory.briefing(from: $0) }
+    }
+
+    /// What the panel recalls about the last meeting with the same Google Meet code (a recurring event).
+    private func meetingBriefing(for online: OnlineCall, excluding id: UUID) -> CallBriefing? {
+        guard appState.showCallBriefing else { return nil }
+        return CallHistory.previousMeeting(in: appState.recordings, code: online.meetingCode, excluding: id)
+            .flatMap { CallHistory.briefing(from: $0) }
     }
 
     /// Stops the running recording and, unless told otherwise, processes it right away.
@@ -294,7 +337,7 @@ final class RecordingCoordinator: ObservableObject {
         }
 
         let caller = wasCall ? currentCaller : CallerLabel()
-        let canRemember = !caller.isEmpty && appState.privateRule(number: caller.number, name: caller.name) == nil
+        let canRemember = caller.canBePrivate && appState.privateRule(number: caller.number, name: caller.name) == nil
         showOverlay(.discarded(caller, canRemember: canRemember), hideAfter: canRemember ? 45 : 6)
     }
 
@@ -434,6 +477,7 @@ final class RecordingCoordinator: ObservableObject {
             let summary = try await deepInfra.summarize(
                 transcript: transcript,
                 hasSpeakers: recording.hasSpeakers,
+                call: recording.onlineCall,
                 clientContext: appState.client(for: recording)?.aiContext(),
                 userRole: userRole,
                 language: AppLanguage.current,

@@ -125,6 +125,8 @@ enum SelfTest {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let controller = CallOverlayController(coordinator: coordinator, loc: loc)
         let caller = CallerLabel(name: "Jan Novák", number: "+420 777 123 456")
+        let meet = CallerLabel(online: OnlineCall(service: .meet, app: .chrome, meetingCode: "abc-defg-hij"))
+        let whatsapp = CallerLabel(online: OnlineCall(service: .whatsapp, app: .whatsapp))
         let briefing = CallBriefing(
             recordingId: UUID(),
             date: Date().addingTimeInterval(-6 * 86_400),
@@ -143,7 +145,13 @@ enum SelfTest {
             ("4-remembered", .remembered(caller), 1),
             ("5-skipped", .skipped(CallerLabel(name: "Máma")), 1),
             ("6-briefing", .recording(caller, briefing: briefing), 1),
-            ("7-briefing-pill", .recording(caller, briefing: briefing), 31)
+            ("7-briefing-pill", .recording(caller, briefing: briefing), 31),
+            // A non-recording state in between opens the next call's card in full, like a real new call.
+            ("8-meet-discarded", .discarded(meet, canRemember: false), 1),
+            ("9-meet", .recording(meet, briefing: briefing), 1),
+            ("10-meet-pill", .recording(meet, briefing: briefing), 31),
+            ("11-whatsapp-discarded", .discarded(whatsapp, canRemember: false), 1),
+            ("12-whatsapp", .recording(whatsapp), 1)
         ]
 
         struct Shot: Encodable { let name: String; let frame: [CGFloat]; let screen: [CGFloat]? }

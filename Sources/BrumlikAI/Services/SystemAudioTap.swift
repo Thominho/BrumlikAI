@@ -4,11 +4,13 @@ import AVFoundation
 import CoreAudio
 import Accelerate
 
-enum SystemTapMode {
+enum SystemTapMode: Equatable {
     /// Everything the Mac plays except BrumlikAI itself (manual recordings).
     case allExceptSelf
     /// Like `allExceptSelf`, but also leaves out apps that are only playing audio when the call starts (music, videos).
-    case callFocused
+    /// `keeping` is the app a Meet or WhatsApp call runs in (a bundle ID prefix): none of its processes is left out,
+    /// because Chrome may play the call in a different helper process than the one that captures the microphone.
+    case callFocused(keeping: String? = nil)
     /// Everything including BrumlikAI — the permission test plays its own sound.
     case all
 }
@@ -170,9 +172,10 @@ final class SystemAudioTap: @unchecked Sendable {
         if let own = CoreAudioProcesses.objectID(for: ProcessInfo.processInfo.processIdentifier) {
             excluded.append(own)
         }
-        if mode == .callFocused {
+        if case .callFocused(let callApp) = mode {
             excluded += CoreAudioProcesses.list()
                 .filter { !$0.isCurrentProcess && $0.isRunningOutput && !$0.isRunningInput && !$0.isCallProcess }
+                .filter { process in callApp.map { !process.bundleID.hasPrefix($0) } ?? true }
                 .map(\.objectID)
         }
         return excluded

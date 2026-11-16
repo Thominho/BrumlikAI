@@ -203,7 +203,7 @@ struct CallOverlayCard: View {
                     }
                 }
             } else {
-                Text(t(.hudDiscardedTip))
+                Text(t(caller.online == nil ? .hudDiscardedTip : .hudDiscardedOnlineTip))
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -259,7 +259,7 @@ struct CallOverlayCard: View {
 
     private func callerChip(_ caller: CallerLabel) -> some View {
         HStack(spacing: 7) {
-            Image(systemName: caller.number == nil ? "person.fill" : "phone.fill")
+            Image(systemName: caller.online?.symbol ?? (caller.number == nil ? "person.fill" : "phone.fill"))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
             Text(caller.title ?? "")
